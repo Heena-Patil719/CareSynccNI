@@ -1,0 +1,180 @@
+/** @import must precede all other statements */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /**
+   * Care Sync - Healthcare Diagnosis Mapping Platform
+   * Color scheme: Professional medical blue with modern accents
+   */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 13% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 14%;
+
+    --primary: 217 91% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 97% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 13% 91%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 185 100% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 49%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 220 13% 97%;
+    --sidebar-foreground: 220 13% 30%;
+    --sidebar-primary: 217 91% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 185 100% 40%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 85%;
+    --sidebar-ring: 217 91% 49%;
+
+    font-family: "Inter", sans-serif;
+  }
+
+  .dark {
+    --background: 217 33% 17%;
+    --foreground: 0 0% 98%;
+
+    --card: 217 33% 20%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 217 33% 20%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 217 33% 17%;
+
+    --secondary: 210 97% 55%;
+    --secondary-foreground: 217 33% 17%;
+
+    --muted: 217 33% 35%;
+    --muted-foreground: 0 0% 70%;
+
+    --accent: 185 100% 50%;
+    --accent-foreground: 217 33% 17%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 217 33% 17%;
+
+    --border: 217 33% 30%;
+    --input: 217 33% 30%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 217 33% 15%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 217 33% 17%;
+    --sidebar-accent: 185 100% 50%;
+    --sidebar-accent-foreground: 217 33% 17%;
+    --sidebar-border: 217 33% 25%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  :where(p, span, li, h1, h2, h3, h4, h5, h6, a, button, label, td, th) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  pre,
+  code {
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  h1 {
+    @apply font-bold;
+    font-family: "Poppins", sans-serif;
+  }
+
+  h2 {
+    @apply font-bold;
+    font-family: "Poppins", sans-serif;
+  }
+
+  h3 {
+    @apply font-semibold;
+    font-family: "Poppins", sans-serif;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-md border border-white/10;
+  }
+
+  .gradient-primary {
+    @apply bg-gradient-to-r from-primary to-secondary;
+  }
+
+  .gradient-accent {
+    @apply bg-gradient-to-r from-accent to-primary;
+  }
+
+  .dark .gradient-text-blue {
+    background: linear-gradient(to right, rgb(59, 130, 246), rgb(37, 99, 235));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .light .gradient-text-blue {
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
