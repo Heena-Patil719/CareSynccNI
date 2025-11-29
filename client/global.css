@@ -54,42 +54,45 @@
   }
 
   .dark {
-    --background: 217 33% 17%;
-    --foreground: 0 0% 98%;
+    /* More professional, desaturated navy palette */
+    color-scheme: dark;
 
-    --card: 217 33% 20%;
-    --card-foreground: 0 0% 98%;
+    --background: 220 18% 10%;          /* deep navy */
+    --foreground: 210 20% 96%;          /* almost white text */
 
-    --popover: 217 33% 20%;
-    --popover-foreground: 0 0% 98%;
+    --card: 220 18% 14%;                /* slightly lighter than bg */
+    --card-foreground: 210 20% 96%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 217 33% 17%;
+    --popover: 220 18% 14%;
+    --popover-foreground: 210 20% 96%;
 
-    --secondary: 210 97% 55%;
-    --secondary-foreground: 217 33% 17%;
+    --primary: 217 85% 58%;             /* strong brand blue */
+    --primary-foreground: 210 30% 98%;
 
-    --muted: 217 33% 35%;
-    --muted-foreground: 0 0% 70%;
+    --secondary: 215 35% 35%;           /* muted blue-grey for secondary actions */
+    --secondary-foreground: 210 30% 96%;
 
-    --accent: 185 100% 50%;
-    --accent-foreground: 217 33% 17%;
+    --muted: 220 15% 20%;               /* muted surfaces */
+    --muted-foreground: 220 15% 70%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 217 33% 17%;
+    --accent: 185 60% 48%;              /* teal accent but less neon */
+    --accent-foreground: 210 30% 96%;
 
-    --border: 217 33% 30%;
-    --input: 217 33% 30%;
-    --ring: 217 91% 60%;
+    --destructive: 0 70% 52%;
+    --destructive-foreground: 210 30% 96%;
 
-    --sidebar-background: 217 33% 15%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 217 33% 17%;
-    --sidebar-accent: 185 100% 50%;
-    --sidebar-accent-foreground: 217 33% 17%;
-    --sidebar-border: 217 33% 25%;
-    --sidebar-ring: 217 91% 60%;
+    --border: 220 15% 24%;              /* subtle but visible borders */
+    --input: 220 15% 24%;
+    --ring: 217 80% 60%;                /* focus/outline uses brand blue */
+
+    --sidebar-background: 220 18% 8%;   /* slightly darker than main background */
+    --sidebar-foreground: 210 20% 94%;
+    --sidebar-primary: 217 85% 58%;
+    --sidebar-primary-foreground: 210 30% 96%;
+    --sidebar-accent: 185 60% 48%;
+    --sidebar-accent-foreground: 210 30% 96%;
+    --sidebar-border: 220 15% 22%;
+    --sidebar-ring: 217 80% 60%;
   }
 }
 
@@ -151,7 +154,11 @@
   }
 
   .dark .gradient-text-blue {
-    background: linear-gradient(to right, rgb(59, 130, 246), rgb(37, 99, 235));
+    background: linear-gradient(
+      to right,
+      hsl(217 85% 58%),
+      hsl(217 70% 52%)
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
