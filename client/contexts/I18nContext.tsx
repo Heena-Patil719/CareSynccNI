@@ -1,6 +1,27 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
 
-export type Language = "en" | "es" | "fr" | "hi";
+export type Language =
+  | "en"
+  | "es"
+  | "fr"
+  | "hi"
+  | "ta" // Tamil
+  | "te" // Telugu
+  | "kn" // Kannada
+  | "ml" // Malayalam
+  | "mr" // Marathi
+  | "gu" // Gujarati
+  | "bn" // Bengali
+  | "pa" // Punjabi
+  | "or" // Odia
+  | "as" // Assamese
+  | "ur"; // Urdu
 
 export const translations = {
   en: {
@@ -10,7 +31,7 @@ export const translations = {
     patients: "Patients",
     admin: "Admin",
     profile: "Profile",
-    logout: "Logout",
+    logout: "Log Out",
     login: "Login",
     signup: "Sign Up",
     signIn: "Sign In",
@@ -32,18 +53,17 @@ export const translations = {
     light: "Light",
     dark: "Dark",
     system: "System",
-    logout: "Log Out",
-    
+
     // Landing Page
     bridgeTraditionalModern: "Bridge Traditional & Modern Medicine",
-    mapNAMASTEtoICD11: "Map NAMASTE (Ayurveda, Siddha, Unani) diagnosis codes to ICD-11 with our secure, FHIR-compliant platform.",
+    mapNAMASTEtoICD11:
+      "Map NAMASTE (Ayurveda, Siddha, Unani) diagnosis codes to ICD-11 with our secure, FHIR-compliant platform.",
     getStarted: "Get Started",
     learnMore: "Learn More",
     codesMap: "Codes Mapped",
     users: "Users",
     accuracy: "Accuracy",
     keyFeatures: "Key Features",
-    codeMapping: "Code Mapping",
     codesMappingDesc: "Map NAMASTE codes to ICD-11 with confidence scores",
     patientManagement: "Patient Management",
     patientManagementDesc: "Store and manage patient records with diagnoses",
@@ -56,8 +76,6 @@ export const translations = {
     adminDashboard: "Admin Dashboard",
     adminDashboardDesc: "Manage codes, mappings, and user access",
     howItWorks: "How It Works",
-    signup: "Sign Up",
-    search: "Search",
     map: "Map",
     export: "Export",
     createAccount: "Create your account",
@@ -69,7 +87,6 @@ export const translations = {
     signUpNow: "Sign Up Now",
 
     // Auth
-    createAccount: "Create Account",
     welcomeBack: "Welcome Back",
     joinCareSyncManage: "Join Care Sync to manage patient records",
     signInAccount: "Sign in to your Care Sync account",
@@ -109,6 +126,8 @@ export const translations = {
     changePassword: "Change Password",
     accountSettings: "Account Settings",
   },
+
+  // Spanish (partial, falls back to English where missing)
   es: {
     dashboard: "Panel de Control",
     codeMapping: "Mapeo de Códigos",
@@ -116,6 +135,9 @@ export const translations = {
     admin: "Administrador",
     profile: "Perfil",
     logout: "Cerrar Sesión",
+    login: "Iniciar Sesión",
+    signup: "Registrarse",
+    signIn: "Iniciar Sesión",
     email: "Correo Electrónico",
     password: "Contraseña",
     firstName: "Nombre",
@@ -124,7 +146,7 @@ export const translations = {
     cancel: "Cancelar",
     edit: "Editar",
     delete: "Eliminar",
-    search: "Búsqueda",
+    search: "Buscar",
     loading: "Cargando...",
     error: "Error",
     success: "Éxito",
@@ -135,8 +157,11 @@ export const translations = {
     dark: "Oscuro",
     system: "Sistema",
     bridgeTraditionalModern: "Conectar Medicina Tradicional y Moderna",
-    mapNAMASTEtoICD11: "Asigne códigos de diagnóstico NAMASTE (Ayurveda, Siddha, Unani) a ICD-11 con nuestra plataforma segura y compatible con FHIR.",
+    mapNAMASTEtoICD11:
+      "Asigne códigos de diagnóstico NAMASTE (Ayurveda, Siddha, Unani) a ICD-11 con nuestra plataforma segura y compatible con FHIR.",
   },
+
+  // French (partial, falls back to English where missing)
   fr: {
     dashboard: "Tableau de Bord",
     codeMapping: "Mappage des Codes",
@@ -144,6 +169,9 @@ export const translations = {
     admin: "Administrateur",
     profile: "Profil",
     logout: "Déconnexion",
+    login: "Connexion",
+    signup: "Inscription",
+    signIn: "Se connecter",
     email: "E-mail",
     password: "Mot de passe",
     firstName: "Prénom",
@@ -163,6 +191,8 @@ export const translations = {
     dark: "Sombre",
     system: "Système",
   },
+
+  // Hindi
   hi: {
     dashboard: "डैशबोर्ड",
     codeMapping: "कोड मैपिंग",
@@ -170,6 +200,9 @@ export const translations = {
     admin: "व्यवस्थापक",
     profile: "प्रोफ़ाइल",
     logout: "लॉग आउट",
+    login: "लॉगिन",
+    signup: "साइन अप",
+    signIn: "साइन इन",
     email: "ईमेल",
     password: "पासवर्ड",
     firstName: "पहला नाम",
@@ -178,16 +211,360 @@ export const translations = {
     cancel: "रद्द करें",
     edit: "संपादित करें",
     delete: "हटाएं",
-    search: "खोज",
+    search: "खोजें",
     loading: "लोड हो रहा है...",
     error: "त्रुटि",
     success: "सफलता",
-    settings: "सेटिंग",
+    settings: "सेटिंग्स",
     language: "भाषा",
-    theme: "विषय",
+    theme: "थीम",
     light: "हल्का",
     dark: "गहरा",
     system: "सिस्टम",
+    bridgeTraditionalModern: "पारंपरिक और आधुनिक चिकित्सा के बीच सेतु",
+    mapNAMASTEtoICD11:
+      "हमारे सुरक्षित, FHIR-अनुपालक प्लेटफ़ॉर्म के साथ NAMASTE (आयुर्वेद, सिद्ध, यूनानी) निदान कोड को ICD-11 से मैप करें।",
+  },
+
+  // Tamil
+  ta: {
+    dashboard: "டாஷ்போர்ட்",
+    codeMapping: "குறியீட்டு பொருத்தம்",
+    patients: "நோயாளிகள்",
+    admin: "நிர்வாகம்",
+    profile: "சுயவிவரம்",
+    logout: "வெளியேறு",
+    login: "உள்நுழை",
+    signup: "பதிவு செய்யவும்",
+    signIn: "உள்நுழை",
+    email: "மின்னஞ்சல்",
+    password: "கடவுச்சொல்",
+    firstName: "முதல் பெயர்",
+    lastName: "கடைசி பெயர்",
+    save: "சேமிக்க",
+    cancel: "ரத்து செய்",
+    edit: "திருத்து",
+    delete: "அழி",
+    search: "தேடல்",
+    loading: "ஏற்றுகிறது...",
+    error: "பிழை",
+    success: "வெற்றி",
+    settings: "அமைப்புகள்",
+    language: "மொழி",
+    theme: "தீம்",
+    light: "லைட்",
+    dark: "டார்க்",
+    system: "கணினி",
+  },
+
+  // Telugu
+  te: {
+    dashboard: "డాష్‌బోర్డ్",
+    codeMapping: "కోడ్ మ్యాపింగ్",
+    patients: "రోగులు",
+    admin: "అడ్మిన్",
+    profile: "ప్రొఫైల్",
+    logout: "లాగ్ అవుట్",
+    login: "లాగిన్",
+    signup: "సైన్ అప్",
+    signIn: "సైన్ ఇన్",
+    email: "ఈమెయిల్",
+    password: "పాస్వర్డ్",
+    firstName: "మొదటి పేరు",
+    lastName: "చివరి పేరు",
+    save: "సేవ్",
+    cancel: "రద్దు",
+    edit: "సవరణ",
+    delete: "తొలగించు",
+    search: "శోధన",
+    loading: "లోడ్ అవుతోంది...",
+    error: "లోపం",
+    success: "విజయం",
+    settings: "సెట్టింగ్స్",
+    language: "భాష",
+    theme: "థీమ్",
+    light: "లైట్",
+    dark: "డార్క్",
+    system: "సిస్టమ్",
+  },
+
+  // Kannada
+  kn: {
+    dashboard: "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    codeMapping: "ಕೋಡ್ ಮ್ಯಾಪಿಂಗ್",
+    patients: "ರೋಗಿಗಳು",
+    admin: "ನಿರ್ವಾಹಕ",
+    profile: "ಪ್ರೊಫೈಲ್",
+    logout: "ಲಾಗ್ ಔಟ್",
+    login: "ಲಾಗಿನ್",
+    signup: "ಸೈನ್ ಅಪ್",
+    signIn: "ಸೈನ್ ಇನ್",
+    email: "ಇಮೇಲ್",
+    password: "ಪಾಸ್ವರ್ಡ್",
+    firstName: "ಮೊದಲ ಹೆಸರು",
+    lastName: "ಕೊನೆಯ ಹೆಸರು",
+    save: "ಸೇವ್",
+    cancel: "ರದ್ದು",
+    edit: "ಸಂಪಾದನೆ",
+    delete: "ಅಳಿಸು",
+    search: "ಹುಡುಕು",
+    loading: "ಲೋಡ್ ಆಗುತ್ತಿದೆ...",
+    error: "ದೋಷ",
+    success: "ಯಶಸ್ಸು",
+    settings: "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+    language: "ಭಾಷೆ",
+    theme: "ಥೀಮ್",
+    light: "ಲೈಟ್",
+    dark: "ಡಾರ್ಕ್",
+    system: "ಸಿಸ್ಟಮ್",
+  },
+
+  // Malayalam
+  ml: {
+    dashboard: "ഡാഷ്ബോർഡ്",
+    codeMapping: "കോഡ് മാപ്പിംഗ്",
+    patients: "രോഗികൾ",
+    admin: "അഡ്മിൻ",
+    profile: "പ്രൊഫൈൽ",
+    logout: "ലോഗ് ഔട്ട്",
+    login: "ലോഗിൻ",
+    signup: "സൈൻ അപ്പ്",
+    signIn: "സൈൻ ഇൻ",
+    email: "ഇമെയിൽ",
+    password: "പാസ്‌വേഡ്",
+    firstName: "പേരിന്റെ ആദ്യഭാഗം",
+    lastName: "പേരിന്റെ അവസാന ഭാഗം",
+    save: "സേവ് ചെയ്യുക",
+    cancel: "റദ്ദാക്കുക",
+    edit: "എഡിറ്റ് ചെയ്യുക",
+    delete: "ഡിലീറ്റ് ചെയ്യുക",
+    search: "തിരയുക",
+    loading: "ലോഡ് ചെയ്യുന്നു...",
+    error: "പിശക്",
+    success: "വിജയം",
+    settings: "സെറ്റിംഗുകൾ",
+    language: "ഭാഷ",
+    theme: "തീം",
+    light: "ലൈറ്റ്",
+    dark: "ഡാർക്ക്",
+    system: "സിസ്റ്റം",
+  },
+
+  // Marathi
+  mr: {
+    dashboard: "डॅशबोर्ड",
+    codeMapping: "कोड मॅपिंग",
+    patients: "रुग्ण",
+    admin: "प्रशासन",
+    profile: "प्रोफाइल",
+    logout: "लॉग आउट",
+    login: "लॉगिन",
+    signup: "साइन अप",
+    signIn: "साइन इन",
+    email: "ईमेल",
+    password: "पासवर्ड",
+    firstName: "पहिले नाव",
+    lastName: "आडनाव",
+    save: "जतन करा",
+    cancel: "रद्द करा",
+    edit: "संपादित करा",
+    delete: "हटवा",
+    search: "शोधा",
+    loading: "लोड होत आहे...",
+    error: "त्रुटी",
+    success: "यशस्वी",
+    settings: "सेटिंग्ज",
+    language: "भाषा",
+    theme: "थीम",
+    light: "लाइट",
+    dark: "डार्क",
+    system: "सिस्टम",
+  },
+
+  // Gujarati
+  gu: {
+    dashboard: "ડેશબોર્ડ",
+    codeMapping: "કોડ મેપિંગ",
+    patients: "દર્દીઓ",
+    admin: "એડમિન",
+    profile: "પ્રોફાઇલ",
+    logout: "લોગ આઉટ",
+    login: "લોગિન",
+    signup: "સાઇન અપ",
+    signIn: "સાઇન ઇન",
+    email: "ઇમેઇલ",
+    password: "પાસવર્ડ",
+    firstName: "પ્રથમ નામ",
+    lastName: "અટક",
+    save: "સેવ કરો",
+    cancel: "રદ કરો",
+    edit: "એડિટ કરો",
+    delete: "ડિલીટ કરો",
+    search: "શોધો",
+    loading: "લોડ થઇ રહ્યું છે...",
+    error: "ભૂલ",
+    success: "સફળતા",
+    settings: "સેટિંગ્સ",
+    language: "ભાષા",
+    theme: "થીમ",
+    light: "લાઇટ",
+    dark: "ડાર્ક",
+    system: "સિસ્ટમ",
+  },
+
+  // Bengali
+  bn: {
+    dashboard: "ড্যাশবোর্ড",
+    codeMapping: "কোড ম্যাপিং",
+    patients: "রোগী",
+    admin: "অ্যাডমিন",
+    profile: "প্রোফাইল",
+    logout: "লগ আউট",
+    login: "লগ ইন",
+    signup: "সাইন আপ",
+    signIn: "সাইন ইন",
+    email: "ইমেইল",
+    password: "পাসওয়ার্ড",
+    firstName: "প্রথম নাম",
+    lastName: "শেষ নাম",
+    save: "সংরক্ষণ করুন",
+    cancel: "বাতিল করুন",
+    edit: "এডিট করুন",
+    delete: "ডিলিট করুন",
+    search: "খুঁজুন",
+    loading: "লোড হচ্ছে...",
+    error: "ত্রুটি",
+    success: "সফলতা",
+    settings: "সেটিংস",
+    language: "ভাষা",
+    theme: "থিম",
+    light: "লাইট",
+    dark: "ডার্ক",
+    system: "সিস্টেম",
+  },
+
+  // Punjabi
+  pa: {
+    dashboard: "ਡੈਸ਼ਬੋਰਡ",
+    codeMapping: "ਕੋਡ ਮੈਪਿੰਗ",
+    patients: "ਮਰੀਜ਼",
+    admin: "ਐਡਮਿਨ",
+    profile: "ਪ੍ਰੋਫ਼ਾਈਲ",
+    logout: "ਲੌਗ ਆਉਟ",
+    login: "ਲੌਗਿਨ",
+    signup: "ਸਾਇਨ ਅੱਪ",
+    signIn: "ਸਾਇਨ ਇਨ",
+    email: "ਈਮੇਲ",
+    password: "ਪਾਸਵਰਡ",
+    firstName: "ਪਹਿਲਾ ਨਾਮ",
+    lastName: "ਆਖਰੀ ਨਾਮ",
+    save: "ਸੇਵ ਕਰੋ",
+    cancel: "ਰੱਦ ਕਰੋ",
+    edit: "ਸੰਪਾਦਨ ਕਰੋ",
+    delete: "ਮਿਟਾਓ",
+    search: "ਖੋਜੋ",
+    loading: "ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ...",
+    error: "ਗਲਤੀ",
+    success: "ਸਫਲਤਾ",
+    settings: "ਸੈਟਿੰਗਜ਼",
+    language: "ਭਾਸ਼ਾ",
+    theme: "ਥੀਮ",
+    light: "ਲਾਈਟ",
+    dark: "ਡਾਰਕ",
+    system: "ਸਿਸਟਮ",
+  },
+
+  // Odia
+  or: {
+    dashboard: "ଡ୍ୟାଶବୋର୍ଡ",
+    codeMapping: "କୋଡ୍ ମ୍ୟାପିଙ୍ଗ",
+    patients: "ରୋଗୀ",
+    admin: "ଏଡମିନ",
+    profile: "ପ୍ରୋଫାଇଲ୍",
+    logout: "ଲଗ୍ ଆଉଟ୍",
+    login: "ଲଗିନ୍",
+    signup: "ସାଇନ୍ ଅପ୍",
+    signIn: "ସାଇନ୍ ଇନ୍",
+    email: "ଇମେଲ୍",
+    password: "ପାସୱାର୍ଡ",
+    firstName: "ପ୍ରଥମ ନାମ",
+    lastName: "ଶେଷ ନାମ",
+    save: "ସେଭ୍ କରନ୍ତୁ",
+    cancel: "ବାତିଲ୍ କରନ୍ତୁ",
+    edit: "ସମ୍ପାଦନ କରନ୍ତୁ",
+    delete: "ଡିଲିଟ୍ କରନ୍ତୁ",
+    search: "ଖୋଜନ୍ତୁ",
+    loading: "ଲୋଡ୍ ହେଉଛି...",
+    error: "ତ୍ରୁଟି",
+    success: "ସଫଳତା",
+    settings: "ସେଟିଂସ୍",
+    language: "ଭାଷା",
+    theme: "ଥିମ୍",
+    light: "ଲାଇଟ୍",
+    dark: "ଡାର୍କ",
+    system: "ସିଷ୍ଟମ୍",
+  },
+
+  // Assamese
+  as: {
+    dashboard: "ডেশ্ববৰ্ড",
+    codeMapping: "কোড মেপিং",
+    patients: "ৰোগী",
+    admin: "এডমিন",
+    profile: "প্ৰফাইল",
+    logout: "লগ আউট",
+    login: "লগিন",
+    signup: "ছাইন আপ",
+    signIn: "ছাইন ইন",
+    email: "ইমেইল",
+    password: "পাছৱাৰ্ড",
+    firstName: "প্ৰথম নাম",
+    lastName: "শেহতীয়া নাম",
+    save: "ছেভ কৰক",
+    cancel: "বাতিল কৰক",
+    edit: "সম্পাদনা কৰক",
+    delete: "ডিলিট কৰক",
+    search: "বিচাৰক",
+    loading: "ল'ড হৈ আছে...",
+    error: "ত্ৰুটি",
+    success: "সফলতা",
+    settings: "ছেটিংছ",
+    language: "ভাষা",
+    theme: "থিম",
+    light: "লাইট",
+    dark: "ডাৰ্ক",
+    system: "ছিষ্টেম",
+  },
+
+  // Urdu
+  ur: {
+    dashboard: "ڈیش بورڈ",
+    codeMapping: "کوڈ میپنگ",
+    patients: "مریض",
+    admin: "ایڈمن",
+    profile: "پروفائل",
+    logout: "لاگ آؤٹ",
+    login: "لاگ اِن",
+    signup: "سائن اَپ",
+    signIn: "سائن اِن",
+    email: "ای میل",
+    password: "پاس ورڈ",
+    firstName: "پہلا نام",
+    lastName: "آخری نام",
+    save: "محفوظ کریں",
+    cancel: "منسوخ کریں",
+    edit: "ترمیم کریں",
+    delete: "حذف کریں",
+    search: "تلاش کریں",
+    loading: "لوڈ ہو رہا ہے...",
+    error: "خرابی",
+    success: "کامیابی",
+    settings: "سیٹنگز",
+    language: "زبان",
+    theme: "تھیم",
+    light: "لائٹ",
+    dark: "ڈارک",
+    system: "سسٹم",
   },
 };
 
@@ -201,11 +578,10 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
-  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
-    const savedLang = (localStorage.getItem("careSync_language") as Language) || "en";
+    const savedLang =
+      (localStorage.getItem("careSync_language") as Language) || "en";
     setLanguageState(savedLang);
   }, []);
 
@@ -215,7 +591,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   };
 
   const t = (key: keyof typeof translations.en): string => {
-    return translations[language][key] || translations.en[key] || key;
+    const langObj = translations[language] as any;
+    return langObj?.[key] ?? translations.en[key] ?? key;
   };
 
   return (

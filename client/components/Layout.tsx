@@ -41,6 +41,24 @@ export function Layout({ children }: LayoutProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const LANGUAGE_OPTIONS: { code: Language; label: string }[] = [
+    { code: "en", label: "English" },
+    { code: "es", label: "Español" },
+    { code: "fr", label: "Français" },
+    { code: "hi", label: "हिन्दी" },
+    { code: "ta", label: "தமிழ்" },
+    { code: "te", label: "తెలుగు" },
+    { code: "kn", label: "ಕನ್ನಡ" },
+    { code: "ml", label: "മലയാളം" },
+    { code: "mr", label: "मराठी" },
+    { code: "gu", label: "ગુજરાતી" },
+    { code: "bn", label: "বাংলা" },
+    { code: "pa", label: "ਪੰਜਾਬੀ" },
+    { code: "or", label: "ଓଡିଆ" },
+    { code: "as", label: "অসমীয়া" },
+    { code: "ur", label: "اردو" },
+  ];
+
   // Only show navigation if authenticated
   const navigationItems = isAuthenticated
     ? [
@@ -59,11 +77,7 @@ export function Layout({ children }: LayoutProps) {
           path: "/patients",
           icon: Users,
         },
-        {
-          name: t("admin"),
-          path: "/admin",
-          icon: Settings,
-        },
+       
       ]
     : [];
 
@@ -112,7 +126,12 @@ export function Layout({ children }: LayoutProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-9 px-0">
-                    {theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches) ? (
+                    {theme === "light" ||
+                    (theme === "system" &&
+                      typeof window !== "undefined" &&
+                      !window.matchMedia(
+                        "(prefers-color-scheme: dark)"
+                      ).matches) ? (
                       <Sun className="w-4 h-4" />
                     ) : (
                       <Moon className="w-4 h-4" />
@@ -146,35 +165,40 @@ export function Layout({ children }: LayoutProps) {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>{t("language")}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setLanguage("en")}>
-                        English
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLanguage("es")}>
-                        Español
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLanguage("fr")}>
-                        Français
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLanguage("hi")}>
-                        हिन्दी
-                      </DropdownMenuItem>
+                      {LANGUAGE_OPTIONS.map((lang) => (
+                        <DropdownMenuItem
+                          key={lang.code}
+                          onClick={() => setLanguage(lang.code)}
+                        >
+                          {lang.label}
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
 
                   {/* Profile Dropdown */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="w-9 px-0 rounded-full">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-9 px-0 rounded-full"
+                      >
                         <Avatar className="w-8 h-8">
                           <AvatarFallback className="text-xs bg-primary text-white">
-                            {user?.firstName[0]}{user?.lastName[0]}
+                            {user?.firstName?.[0]}
+                            {user?.lastName?.[0]}
                           </AvatarFallback>
                         </Avatar>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel>{user?.firstName} {user?.lastName}</DropdownMenuLabel>
-                      <p className="text-xs text-muted-foreground px-2">{user?.email}</p>
+                      <DropdownMenuLabel>
+                        {user?.firstName} {user?.lastName}
+                      </DropdownMenuLabel>
+                      <p className="text-xs text-muted-foreground px-2">
+                        {user?.email}
+                      </p>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
                         <Link to="/profile" className="cursor-pointer">
@@ -182,7 +206,10 @@ export function Layout({ children }: LayoutProps) {
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={logout} className="text-red-600">
+                      <DropdownMenuItem
+                        onClick={logout}
+                        className="text-red-600"
+                      >
                         <LogOut className="w-4 h-4 mr-2" />
                         {t("logout")}
                       </DropdownMenuItem>
@@ -261,17 +288,26 @@ export function Layout({ children }: LayoutProps) {
                 <h4 className="font-semibold text-sm mb-3">Features</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       Code Mapping
                     </a>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       Patient Management
                     </a>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       FHIR API
                     </a>
                   </li>
@@ -281,17 +317,26 @@ export function Layout({ children }: LayoutProps) {
                 <h4 className="font-semibold text-sm mb-3">Company</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       About
                     </a>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       Privacy
                     </a>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       Terms
                     </a>
                   </li>
@@ -301,12 +346,18 @@ export function Layout({ children }: LayoutProps) {
                 <h4 className="font-semibold text-sm mb-3">Support</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       Documentation
                     </a>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-primary transition-colors">
+                    <a
+                      href="#"
+                      className="hover:text-primary transition-colors"
+                    >
                       Contact
                     </a>
                   </li>
