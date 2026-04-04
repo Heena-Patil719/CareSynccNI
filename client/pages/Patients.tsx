@@ -1,24 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Eye, Trash2, Edit2, Calendar } from "lucide-react";
+import { Plus, Eye, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabaseClient";
-
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface HealthUpdate {
   date: string;
@@ -46,64 +32,24 @@ interface Patient {
   healthUpdates?: HealthUpdate[];
 }
 
-interface PatientRow {
-  id: string;
-  created_at: string;
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string | null;
-  gender: "male" | "female" | "other" | null;
-
-  admit_date: string | null;
-  diagnosis: string | null;
-  email: string | null;
-  phone: string | null;
-  guardian_name: string | null;
-  guardian_phone: string | null;
-  address: string | null;
-
-  diagnosis_count: number;
-}
-
-function mapPatient(row: PatientRow): Patient {
-  return {
-    id: row.id,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    dateOfBirth: row.date_of_birth || undefined,
-    gender: row.gender || undefined,
-
-    admitDate: row.admit_date || undefined,
-    diagnosis: row.diagnosis || undefined,
-    email: row.email || undefined,
-    phone: row.phone || undefined,
-    guardianName: row.guardian_name || undefined,
-    guardianPhone: row.guardian_phone || undefined,
-    address: row.address || undefined,
-
-    diagnosisCount: row.diagnosis_count,
-    createdAt: row.created_at.slice(0, 10),
-    healthUpdates: [],
-  };
+async function readJson(res: Response) {
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
 }
 
 export default function Patients() {
+  const { user } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [showForm, setShowForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedPatientGraph, setExpandedPatientGraph] =
-    useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     dateOfBirth: "",
     gender: "male" as "male" | "female" | "other",
-
     admitDate: "",
     diagnosis: "",
     email: "",
@@ -113,126 +59,108 @@ export default function Patients() {
     address: "",
   });
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      setLoading(true);
-      setError(null);
+  const fetchPatients = async () => {
+    setLoading(true);
+    setError(null);
 
-      const { data, error } = await supabase
-        .from("patients")
-        .select("*")
-        .order("created_at", { ascending: false });
+    try {
+      const res = await fetch("/api/patients");
+      const data = await readJson(res);
 
-      if (error) {
-        console.error("Fetch error:", error);
-        setError("Failed to load patients");
-        setPatients([]);
-      } else if (data) {
-        setPatients((data as PatientRow[]).map(mapPatient));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load patients");
       }
 
+      setPatients(data.patients || []);
+    } catch (fetchError) {
+      console.error("Fetch patients error:", fetchError);
+      setPatients([]);
+      setError("Failed to load patients");
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
+  useEffect(() => {
     fetchPatients();
   }, []);
 
   const filteredPatients = patients.filter(
-    (p) =>
-      p.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.lastName.toLowerCase().includes(searchQuery.toLowerCase())
+    (patient) =>
+      patient.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.lastName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleCreatePatient = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!formData.firstName || !formData.lastName) return;
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    console.error("No logged-in user", userError);
-    alert("You must be logged in to create a patient.");
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from("patients")
-    .insert({
-      user_id: user.id,
-      first_name: formData.firstName,
-      last_name: formData.lastName,
-      date_of_birth: formData.dateOfBirth || null,
-      gender: formData.gender,
-
-      admit_date: formData.admitDate || null,
-      diagnosis: formData.diagnosis || null,
-      email: formData.email || null,
-      phone: formData.phone || null,
-      guardian_name: formData.guardianName || null,
-      guardian_phone: formData.guardianPhone || null,
-      address: formData.address || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Insert error:", error);
-
-    // Duplicate: first name + last name + DOB
-    if (error.message.includes("unique_patient_name_dob")) {
-      alert(
-        "A patient with the same first name, last name and date of birth already exists."
-      );
+    if (!formData.firstName || !formData.lastName) {
       return;
     }
 
-    // Duplicate: email
-    if (error.message.includes("unique_patient_email")) {
-      alert("This email address is already used by another patient.");
-      return;
+    try {
+      const res = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          dateOfBirth: formData.dateOfBirth || undefined,
+          gender: formData.gender,
+          admitDate: formData.admitDate || undefined,
+          diagnosis: formData.diagnosis || undefined,
+          email: formData.email || undefined,
+          phone: formData.phone || undefined,
+          guardianName: formData.guardianName || undefined,
+          guardianPhone: formData.guardianPhone || undefined,
+          address: formData.address || undefined,
+        }),
+      });
+
+      const data = await readJson(res);
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create patient");
+      }
+
+      if (data.patient) {
+        setPatients((prev) => [data.patient, ...prev]);
+      }
+
+      setFormData({
+        firstName: "",
+        lastName: "",
+        dateOfBirth: "",
+        gender: "male",
+        admitDate: "",
+        diagnosis: "",
+        email: "",
+        phone: "",
+        guardianName: "",
+        guardianPhone: "",
+        address: "",
+      });
+      setShowForm(false);
+    } catch (createError) {
+      console.error("Create patient error:", createError);
+      alert(createError instanceof Error ? createError.message : "Failed to create patient.");
     }
-
-    alert("Failed to create patient.");
-    return;
-  }
-
-  if (data) {
-    const newPatient = mapPatient(data as PatientRow);
-    setPatients((prev) => [...prev, newPatient]);
-  }
-
-    setFormData({
-      firstName: "",
-      lastName: "",
-      dateOfBirth: "",
-      gender: "male",
-
-      admitDate: "",
-      diagnosis: "",
-      email: "",
-      phone: "",
-      guardianName: "",
-      guardianPhone: "",
-      address: "",
-    });
-
-    setShowForm(false);
   };
 
   const handleDeletePatient = async (id: string) => {
-    const { error } = await supabase.from("patients").delete().eq("id", id);
+    try {
+      const res = await fetch(`/api/patients/${id}`, { method: "DELETE" });
+      const data = await readJson(res);
 
-    if (error) {
-      console.error("Delete error:", error);
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete patient");
+      }
+
+      setPatients((prev) => prev.filter((patient) => patient.id !== id));
+    } catch (deleteError) {
+      console.error("Delete patient error:", deleteError);
       alert("Failed to delete patient");
-      return;
     }
-
-    setPatients((prev) => prev.filter((p) => p.id !== id));
   };
 
   if (loading) {
@@ -255,12 +183,8 @@ export default function Patients() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold mb-2">
-            Patient Management
-          </h1>
-          <p className="text-muted-foreground">
-            Create and manage patient records
-          </p>
+          <h1 className="text-3xl font-display font-bold mb-2">Patient Management</h1>
+          <p className="text-muted-foreground">Create and manage patient records</p>
         </div>
 
         <Button
@@ -279,10 +203,8 @@ export default function Patients() {
 
           <form onSubmit={handleCreatePatient} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
               <InputField label="First Name *" value={formData.firstName} onChange={(v) => setFormData({ ...formData, firstName: v })} />
               <InputField label="Last Name *" value={formData.lastName} onChange={(v) => setFormData({ ...formData, lastName: v })} />
-
               <InputField type="date" label="Date of Birth" value={formData.dateOfBirth} onChange={(v) => setFormData({ ...formData, dateOfBirth: v })} />
 
               <div>
@@ -341,16 +263,11 @@ export default function Patients() {
       </div>
 
       {filteredPatients.length === 0 ? (
-        <div className="p-12 text-center text-muted-foreground">
-          No patients found.
-        </div>
+        <div className="p-12 text-center text-muted-foreground">No patients found.</div>
       ) : (
         <div className="space-y-4">
           {filteredPatients.map((patient) => (
-            <div
-              key={patient.id}
-              className="rounded-lg border border-border bg-card p-4"
-            >
+            <div key={patient.id} className="rounded-lg border border-border bg-card p-4">
               <div className="flex justify-between">
                 <div>
                   <h3 className="font-semibold text-lg">
@@ -400,13 +317,7 @@ function InputField({
   return (
     <div>
       <label className="text-sm font-medium mb-1 block">{label}</label>
-      <Input
-        type={type}
-        value={value}
-        placeholder={label}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <Input type={type} value={value} placeholder={label} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
- 

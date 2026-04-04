@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Mail, User, Shield } from "lucide-react";
+import { Loader2, Mail, Shield } from "lucide-react";
 
 export default function Profile() {
   const { user, updateProfile, logout } = useAuth();
@@ -184,6 +184,7 @@ export default function Profile() {
                       firstName: user.firstName,
                       lastName: user.lastName,
                       email: user.email,
+                      address: user.address || "",
                     });
                   }}
                   disabled={isLoading}

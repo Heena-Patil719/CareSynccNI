@@ -1,11 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
-import { supabase } from "@/lib/supabaseClient";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
 export interface User {
   id: string;
@@ -14,6 +7,7 @@ export interface User {
   lastName: string;
   role: "admin" | "user";
   avatar?: string;
+  address?: string;
 }
 
 interface AuthContextType {
@@ -21,142 +15,116 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  manualLogin: (user: User) => void;   // ← NEW
+  manualLogin: (user: User) => void;
   signup: (
     email: string,
     password: string,
     firstName: string,
-    lastName: string
+    lastName: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 const STORAGE_KEY = "careSync_user";
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Convert Supabase session → User object
-function buildUserFromSupabase(supaUser: any, fallbackEmail?: string): User {
-  const meta = supaUser?.user_metadata || {};
-  return {
-    id: supaUser.id,
-    email: supaUser.email ?? fallbackEmail ?? "",
-    firstName: (meta.firstName as string) || "",
-    lastName: (meta.lastName as string) || "",
-    role: (meta.role as "admin" | "user") || "user",
-    avatar: meta.avatar as string | undefined,
-  };
+async function readJson(res: Response) {
+  const text = await res.text();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text || `Request failed with status ${res.status}` };
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session on app load
   useEffect(() => {
-    const init = async () => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
       try {
-        const { data } = await supabase.auth.getUser();
-        const supaUser = data?.user;
-        const stored = localStorage.getItem(STORAGE_KEY);
-
-        if (supaUser) {
-          let baseUser = buildUserFromSupabase(supaUser);
-          if (stored) {
-            const storedUser: User = JSON.parse(stored);
-            baseUser = { ...baseUser, ...storedUser };
-          }
-          setUser(baseUser);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(baseUser));
-        } else if (stored) {
-          const storedUser: User = JSON.parse(stored);
-          setUser(storedUser);
-        }
-      } finally {
-        setIsLoading(false);
+        setUser(JSON.parse(stored) as User);
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
       }
-    };
-    init();
+    }
+    setIsLoading(false);
   }, []);
 
-  // 🔥 NEW: Manual login for backend API auth
   const manualLogin = (userData: User) => {
     setUser(userData);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
   };
 
-  // Supabase login
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      if (error) throw new Error(error.message);
+      const data = await readJson(res);
 
-      const userObj = buildUserFromSupabase(data.user, email);
-      setUser(userObj);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userObj));
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      manualLogin(data.user);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signup = async (
-    email: string,
-    password: string,
-    firstName: string,
-    lastName: string
-  ) => {
+  const signup = async (email: string, password: string, firstName: string, lastName: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            firstName,
-            lastName,
-            role: "user",
-          },
-        },
+      const sendOtpRes = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, firstName, lastName }),
       });
+      const sendOtpData = await readJson(sendOtpRes);
 
-      if (error) throw new Error(error.message);
-
-      await login(email, password);
+      if (!sendOtpRes.ok) {
+        throw new Error(sendOtpData.error || "Signup failed");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async () => {
-    setIsLoading(true);
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      localStorage.removeItem(STORAGE_KEY);
-    } finally {
-      setIsLoading(false);
-    }
+    setUser(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const updateProfile = async (data: Partial<User>) => {
-    if (!user) throw new Error("Not authenticated");
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { ...data, role: data.role || user.role },
+      const res = await fetch(`/api/auth/profile/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
       });
+      const response = await readJson(res);
 
-      if (error) throw new Error(error.message);
+      if (!res.ok) {
+        throw new Error(response.error || "Failed to update profile");
+      }
 
-      const updatedUser: User = { ...user, ...data };
-      setUser(updatedUser);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+      manualLogin({ ...user, ...response.user });
     } finally {
       setIsLoading(false);
     }
@@ -169,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
-        manualLogin,   // ← EXPORTED
+        manualLogin,
         signup,
         logout,
         updateProfile,

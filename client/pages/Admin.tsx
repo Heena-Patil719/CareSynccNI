@@ -129,15 +129,23 @@ export default function Admin() {
   const [users, setUsers] = useState<User[]>(mockUsers);
   const [showCodeForm, setShowCodeForm] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
-  const [codeFormData, setCodeFormData] = useState({
+  const [codeFormData, setCodeFormData] = useState<{
+    code: string;
+    description: string;
+    category: "Ayurveda" | "Siddha" | "Unani";
+  }>({
     code: "",
     description: "",
-    category: "Ayurveda" as const,
+    category: "Ayurveda",
   });
-  const [userFormData, setUserFormData] = useState({
+  const [userFormData, setUserFormData] = useState<{
+    name: string;
+    email: string;
+    role: "admin" | "editor" | "viewer";
+  }>({
     name: "",
     email: "",
-    role: "viewer" as const,
+    role: "viewer",
   });
 
   // Coverage calculation

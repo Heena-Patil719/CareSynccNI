@@ -1,63 +1,18 @@
 import { RequestHandler } from "express";
 import { z } from "zod";
+import { ObjectId } from "mongodb";
+import { getDb, toObjectId } from "../utils/mongo";
 
-interface CodeSearchResult {
-  namasteCode: string;
-  namasteDescription: string;
-  icd11Code: string;
-  icd11Description: string;
-  confidence: number;
+type CodemapDocument = {
+  _id: ObjectId;
+  namaste_code: string;
+  namaste_name?: string | null;
+  icd11_code: string;
+  icd11_name?: string | null;
   category: "Ayurveda" | "Siddha" | "Unani";
-}
-
-interface CodeSearchResponse {
-  results: CodeSearchResult[];
-  total: number;
-}
-
-// Mock codes database
-const mockCodes: CodeSearchResult[] = [
-  {
-    namasteCode: "AYR-001",
-    namasteDescription: "Vata Vyadhi (Wind Disorder)",
-    icd11Code: "BA25.1",
-    icd11Description: "Disorders of the nervous system and sense organs",
-    confidence: 0.94,
-    category: "Ayurveda",
-  },
-  {
-    namasteCode: "SID-045",
-    namasteDescription: "Pitta Roga (Pitta Disease)",
-    icd11Code: "DA90",
-    icd11Description: "Diabetes mellitus",
-    confidence: 0.87,
-    category: "Siddha",
-  },
-  {
-    namasteCode: "UNA-012",
-    namasteDescription: "Humoral Imbalance",
-    icd11Code: "QD82",
-    icd11Description: "Symptoms and signs",
-    confidence: 0.76,
-    category: "Unani",
-  },
-  {
-    namasteCode: "AYR-023",
-    namasteDescription: "Kapha Vyadhi (Phlegm Disorder)",
-    icd11Code: "DB20",
-    icd11Description: "Asthma",
-    confidence: 0.92,
-    category: "Ayurveda",
-  },
-  {
-    namasteCode: "SID-089",
-    namasteDescription: "Iyya Pitta (Bodily Humours)",
-    icd11Code: "EA03",
-    icd11Description: "Hypertension",
-    confidence: 0.65,
-    category: "Siddha",
-  },
-];
+  status?: string;
+  created_at?: Date;
+};
 
 const searchQuerySchema = z.object({
   q: z.string().optional(),
@@ -65,52 +20,71 @@ const searchQuerySchema = z.object({
   limit: z.coerce.number().default(10),
 });
 
-export const handleSearchCodes: RequestHandler = (req, res) => {
+async function getCollection() {
+  const db = await getDb();
+  return db.collection<CodemapDocument>("codemap");
+}
+
+function mapCode(doc: CodemapDocument) {
+  return {
+    namasteCode: doc.namaste_code,
+    namasteDescription: doc.namaste_name ?? "",
+    icd11Code: doc.icd11_code,
+    icd11Description: doc.icd11_name ?? "",
+    confidence: 1,
+    category: doc.category,
+  };
+}
+
+export const handleSearchCodes: RequestHandler = async (req, res) => {
   try {
     const query = searchQuerySchema.parse(req.query);
-
-    let results = mockCodes;
+    const collection = await getCollection();
+    const filters: Record<string, unknown>[] = [];
 
     if (query.q) {
-      const searchTerm = query.q.toLowerCase();
-      results = results.filter(
-        (code) =>
-          code.namasteCode.toLowerCase().includes(searchTerm) ||
-          code.namasteDescription.toLowerCase().includes(searchTerm) ||
-          code.icd11Code.toLowerCase().includes(searchTerm) ||
-          code.icd11Description.toLowerCase().includes(searchTerm)
-      );
+      const pattern = new RegExp(query.q, "i");
+      filters.push({
+        $or: [
+          { namaste_code: pattern },
+          { namaste_name: pattern },
+          { icd11_code: pattern },
+          { icd11_name: pattern },
+        ],
+      });
     }
 
     if (query.category) {
-      results = results.filter((code) => code.category === query.category);
+      filters.push({ category: query.category });
     }
 
-    results = results.slice(0, query.limit);
+    const docs = await collection
+      .find(filters.length ? { $and: filters } : {})
+      .limit(query.limit)
+      .toArray();
 
-    const response: CodeSearchResponse = {
-      results,
-      total: results.length,
-    };
-
-    res.json(response);
+    return res.json({
+      results: docs.map(mapCode),
+      total: docs.length,
+    });
   } catch (error) {
-    res.status(400).json({ error: "Invalid search query" });
+    console.error("SEARCH CODES ERROR:", error);
+    return res.status(400).json({ error: "Invalid search query" });
   }
 };
 
-export const handleGetCodeByNameste: RequestHandler = (req, res) => {
+export const handleGetCodeByNameste: RequestHandler = async (req, res) => {
   try {
-    const { code } = req.params;
-    const result = mockCodes.find((c) => c.namasteCode === code);
+    const collection = await getCollection();
+    const doc = await collection.findOne({ namaste_code: req.params.code });
 
-    if (!result) {
-      res.status(404).json({ error: "Code not found" });
-      return;
+    if (!doc) {
+      return res.status(404).json({ error: "Code not found" });
     }
 
-    res.json(result);
+    return res.json(mapCode(doc));
   } catch (error) {
-    res.status(500).json({ error: "Internal server error" });
+    console.error("GET CODE ERROR:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };

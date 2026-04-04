@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabaseClient";
 import { ArrowLeft, Download, Plus, Trash2 } from "lucide-react";
 
 interface Patient {
@@ -21,21 +20,6 @@ interface Patient {
   createdAt: string;
 }
 
-interface PatientRow {
-  id: string;
-  created_at: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string | null;
-  gender: "male" | "female" | "other" | null;
-  admit_date: string | null;
-  email: string | null;
-  phone: string | null;
-  guardian_name: string | null;
-  guardian_phone: string | null;
-  address: string | null;
-}
-
 interface Diagnosis {
   id: string;
   namasteCode: string;
@@ -45,42 +29,9 @@ interface Diagnosis {
   recordedAt: string;
 }
 
-interface DiagnosisRow {
-  id: string;
-  created_at: string;
-  patient_id: string;
-  namaste_code: string;
-  icd11_code: string;
-  symptoms: string | null;
-  clinical_notes: string | null;
-}
-
-function mapPatient(row: PatientRow): Patient {
-  return {
-    id: row.id,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    dateOfBirth: row.date_of_birth || undefined,
-    gender: row.gender || undefined,
-    admitDate: row.admit_date || undefined,
-    email: row.email || undefined,
-    phone: row.phone || undefined,
-    guardianName: row.guardian_name || undefined,
-    guardianPhone: row.guardian_phone || undefined,
-    address: row.address || undefined,
-    createdAt: row.created_at.slice(0, 19).replace("T", " "),
-  };
-}
-
-function mapDiagnosis(row: DiagnosisRow): Diagnosis {
-  return {
-    id: row.id,
-    namasteCode: row.namaste_code,
-    icd11Code: row.icd11_code,
-    symptoms: row.symptoms || undefined,
-    clinicalNotes: row.clinical_notes || undefined,
-    recordedAt: row.created_at.slice(0, 19).replace("T", " "),
-  };
+async function readJson(res: Response) {
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
 }
 
 export default function PatientDetail() {
@@ -103,39 +54,23 @@ export default function PatientDetail() {
 
       setLoading(true);
 
-      const { data: patientData, error: patientError } = await supabase
-        .from("patients")
-        .select("*")
-        .eq("id", patientId)
-        .maybeSingle();
+      try {
+        const res = await fetch(`/api/patients/${patientId}`);
+        const data = await readJson(res);
 
-      if (patientError) {
-        console.error("Patient load error:", patientError);
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to load patient");
+        }
+
+        setPatient(data.patient || null);
+        setDiagnoses(data.diagnoses || []);
+      } catch (error) {
+        console.error("Patient load error:", error);
         setPatient(null);
-        setLoading(false);
-        return;
-      }
-
-      if (patientData) {
-        setPatient(mapPatient(patientData as PatientRow));
-      } else {
-        setPatient(null);
-      }
-
-      const { data: diagData, error: diagError } = await supabase
-        .from("patient_diagnoses")
-        .select("*")
-        .eq("patient_id", patientId)
-        .order("created_at", { ascending: true });
-
-      if (diagError) {
-        console.error("Diagnosis load error:", diagError);
         setDiagnoses([]);
-      } else if (diagData) {
-        setDiagnoses((diagData as DiagnosisRow[]).map(mapDiagnosis));
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     load();
@@ -145,124 +80,80 @@ export default function PatientDetail() {
     e.preventDefault();
     if (!patient || !formData.namasteCode || !formData.icd11Code) return;
 
-    const { data, error } = await supabase
-      .from("patient_diagnoses")
-      .insert({
-        patient_id: patient.id,
-        namaste_code: formData.namasteCode,
-        icd11_code: formData.icd11Code,
-        symptoms: formData.symptoms || null,
-        clinical_notes: formData.clinicalNotes || null,
-      })
-      .select()
-      .single();
+    try {
+      const res = await fetch(`/api/patients/${patient.id}/diagnoses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await readJson(res);
 
-    if (error) {
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to add diagnosis");
+      }
+
+      if (data.diagnosis) {
+        setDiagnoses((prev) => [...prev, data.diagnosis]);
+      }
+
+      setFormData({
+        namasteCode: "",
+        icd11Code: "",
+        symptoms: "",
+        clinicalNotes: "",
+      });
+      setShowForm(false);
+    } catch (error) {
       console.error("Add diagnosis error:", error);
       alert("Failed to add diagnosis.");
-      return;
     }
-
-    if (data) {
-      const newDiag = mapDiagnosis(data as DiagnosisRow);
-      setDiagnoses((prev) => [...prev, newDiag]);
-    }
-
-    setFormData({
-      namasteCode: "",
-      icd11Code: "",
-      symptoms: "",
-      clinicalNotes: "",
-    });
-    setShowForm(false);
   };
 
   const handleDeleteDiagnosis = async (id: string) => {
     const ok = window.confirm("Delete this diagnosis?");
-    if (!ok) return;
+    if (!ok || !patient) return;
 
-    const { error } = await supabase
-      .from("patient_diagnoses")
-      .delete()
-      .eq("id", id);
+    try {
+      const res = await fetch(`/api/patients/${patient.id}/diagnoses/${id}`, {
+        method: "DELETE",
+      });
+      const data = await readJson(res);
 
-    if (error) {
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete diagnosis");
+      }
+
+      setDiagnoses((prev) => prev.filter((diagnosis) => diagnosis.id !== id));
+    } catch (error) {
       console.error("Delete diagnosis error:", error);
       alert("Failed to delete diagnosis.");
-      return;
     }
-
-    setDiagnoses((prev) => prev.filter((d) => d.id !== id));
   };
 
-  const exportFHIR = () => {
+  const exportFHIR = async () => {
     if (!patient) return;
 
-    const bundle = {
-      resourceType: "Bundle",
-      type: "document",
-      timestamp: new Date().toISOString(),
-      entry: [
-        {
-          resource: {
-            resourceType: "Patient",
-            id: patient.id,
-            name: [
-              {
-                use: "official",
-                given: [patient.firstName],
-                family: patient.lastName,
-              },
-            ],
-            birthDate: patient.dateOfBirth,
-            gender: patient.gender,
-            telecom: [
-              patient.email ? { system: "email", value: patient.email } : null,
-              patient.phone ? { system: "phone", value: patient.phone } : null,
-            ].filter(Boolean),
-            address: patient.address
-              ? [
-                  {
-                    text: patient.address,
-                  },
-                ]
-              : undefined,
-          },
-        },
-        ...diagnoses.map((d) => ({
-          resource: {
-            resourceType: "Condition",
-            id: d.id,
-            code: {
-              coding: [
-                {
-                  system: "http://id.who.int/icd/release/11/mms",
-                  code: d.icd11Code,
-                },
-              ],
-            },
-            subject: {
-              reference: `Patient/${patient.id}`,
-            },
-            recordedDate: d.recordedAt,
-            note: [
-              ...(d.symptoms ? [{ text: `Symptoms: ${d.symptoms}` }] : []),
-              ...(d.clinicalNotes ? [{ text: d.clinicalNotes }] : []),
-            ],
-          },
-        })),
-      ],
-    };
+    try {
+      const res = await fetch(`/api/patients/${patient.id}/fhir`);
+      const data = await readJson(res);
 
-    const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `patient-${patient.id}-fhir.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to export FHIR");
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `patient-${patient.id}-fhir.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("FHIR export error:", error);
+      alert("Failed to export FHIR JSON.");
+    }
   };
 
   if (loading) {
@@ -297,12 +188,8 @@ export default function PatientDetail() {
           <h1 className="text-3xl font-bold mt-2">
             {patient.firstName} {patient.lastName}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            ID: {patient.id}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Created: {patient.createdAt}
-          </p>
+          <p className="text-muted-foreground text-sm">ID: {patient.id}</p>
+          <p className="text-xs text-muted-foreground">Created: {patient.createdAt}</p>
         </div>
 
         <Button className="gap-2" onClick={exportFHIR}>
@@ -321,9 +208,7 @@ export default function PatientDetail() {
         <DetailCard label="Guardian Phone" value={patient.guardianPhone} />
 
         <div className="rounded-lg border border-border p-4 md:col-span-3">
-          <p className="text-xs text-muted-foreground font-semibold uppercase mb-1">
-            Address
-          </p>
+          <p className="text-xs text-muted-foreground font-semibold uppercase mb-1">Address</p>
           <p className="text-lg">{patient.address || "—"}</p>
         </div>
       </div>
@@ -334,7 +219,7 @@ export default function PatientDetail() {
           <Button
             size="sm"
             variant={showForm ? "secondary" : "default"}
-            onClick={() => setShowForm((v) => !v)}
+            onClick={() => setShowForm((value) => !value)}
             className="gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -346,20 +231,8 @@ export default function PatientDetail() {
           <div className="rounded-lg border border-border p-4">
             <form onSubmit={handleAddDiagnosis} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField
-                  label="Namaste Code *"
-                  value={formData.namasteCode}
-                  onChange={(v) =>
-                    setFormData({ ...formData, namasteCode: v })
-                  }
-                />
-                <InputField
-                  label="ICD-11 Code *"
-                  value={formData.icd11Code}
-                  onChange={(v) =>
-                    setFormData({ ...formData, icd11Code: v })
-                  }
-                />
+                <InputField label="Namaste Code *" value={formData.namasteCode} onChange={(v) => setFormData({ ...formData, namasteCode: v })} />
+                <InputField label="ICD-11 Code *" value={formData.icd11Code} onChange={(v) => setFormData({ ...formData, icd11Code: v })} />
               </div>
 
               <div>
@@ -368,9 +241,7 @@ export default function PatientDetail() {
                   className="w-full border rounded p-2 text-sm"
                   rows={2}
                   value={formData.symptoms}
-                  onChange={(e) =>
-                    setFormData({ ...formData, symptoms: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
                 />
               </div>
 
@@ -380,12 +251,7 @@ export default function PatientDetail() {
                   className="w-full border rounded p-2 text-sm"
                   rows={3}
                   value={formData.clinicalNotes}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      clinicalNotes: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, clinicalNotes: e.target.value })}
                 />
               </div>
 
@@ -395,33 +261,29 @@ export default function PatientDetail() {
         )}
 
         {diagnoses.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No diagnoses recorded yet.
-          </p>
+          <p className="text-muted-foreground text-sm">No diagnoses recorded yet.</p>
         ) : (
           <div className="space-y-3">
-            {diagnoses.map((d) => (
+            {diagnoses.map((diagnosis) => (
               <div
-                key={d.id}
+                key={diagnosis.id}
                 className="rounded-lg border border-border p-4 flex justify-between gap-4"
               >
                 <div className="space-y-1">
                   <p className="font-semibold">
-                    {d.namasteCode} → {d.icd11Code}
+                    {diagnosis.namasteCode} → {diagnosis.icd11Code}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Recorded: {d.recordedAt}
-                  </p>
-                  {d.symptoms && (
+                  <p className="text-xs text-muted-foreground">Recorded: {diagnosis.recordedAt}</p>
+                  {diagnosis.symptoms && (
                     <p className="text-sm">
                       <span className="font-semibold">Symptoms: </span>
-                      {d.symptoms}
+                      {diagnosis.symptoms}
                     </p>
                   )}
-                  {d.clinicalNotes && (
+                  {diagnosis.clinicalNotes && (
                     <p className="text-sm">
                       <span className="font-semibold">Notes: </span>
-                      {d.clinicalNotes}
+                      {diagnosis.clinicalNotes}
                     </p>
                   )}
                 </div>
@@ -429,7 +291,7 @@ export default function PatientDetail() {
                   size="sm"
                   variant="outline"
                   className="text-destructive"
-                  onClick={() => handleDeleteDiagnosis(d.id)}
+                  onClick={() => handleDeleteDiagnosis(diagnosis.id)}
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete
@@ -446,9 +308,7 @@ export default function PatientDetail() {
 function DetailCard({ label, value }: { label: string; value?: string }) {
   return (
     <div className="rounded-lg border border-border p-4">
-      <p className="text-xs text-muted-foreground font-semibold uppercase mb-1">
-        {label}
-      </p>
+      <p className="text-xs text-muted-foreground font-semibold uppercase mb-1">{label}</p>
       <p className="text-lg">{value || "—"}</p>
     </div>
   );

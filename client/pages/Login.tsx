@@ -34,7 +34,22 @@ export default function Login() {
   const { toast } = useToast();
   const { manualLogin } = useAuth();
 
-  const API = "http://localhost:8080/api/auth";
+  const API = "/api/auth";
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedOtp = otp.replace(/\D/g, "").slice(0, 6);
+
+  const readJson = async (res: Response) => {
+    const text = await res.text();
+    if (!text) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text || `Request failed with status ${res.status}` };
+    }
+  };
 
   // ------------------ OTP TIMER ------------------ //
   useEffect(() => {
@@ -52,9 +67,10 @@ export default function Login() {
     const res = await fetch(`${API}/check-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: normalizedEmail }),
     });
-    const data = await res.json();
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || "Unable to verify email");
     return data.exists;
   };
 
@@ -63,9 +79,16 @@ export default function Login() {
     const res = await fetch(`${API}/send-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, firstName, lastName }),
+      body: JSON.stringify({
+        email: normalizedEmail,
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      }),
     });
-    return await res.json();
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || "Failed to send OTP");
+    return data;
   };
 
   const handleSignup = async () => {
@@ -88,10 +111,10 @@ export default function Login() {
 
       toast({ title: "OTP Sent", description: "Check your email inbox" });
 
-    } catch {
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: "Failed to send OTP",
+        description: err?.message || "Failed to send OTP",
         variant: "destructive",
       });
     } finally {
@@ -109,10 +132,10 @@ export default function Login() {
       setCanResend(false);
 
       toast({ title: "OTP Resent" });
-    } catch {
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: "Failed to resend OTP",
+        description: err?.message || "Failed to resend OTP",
         variant: "destructive",
       });
     }
@@ -126,15 +149,15 @@ export default function Login() {
       const res = await fetch(`${API}/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email: normalizedEmail, otp: normalizedOtp }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error);
 
       // Save user inside Auth Context
       manualLogin({
-        id: data?.user?._id || "",
+        id: data?.user?.id || "",
         email: data.user.email,
         firstName: data.user.firstName,
         lastName: data.user.lastName,
@@ -163,16 +186,15 @@ export default function Login() {
       const res = await fetch(`${API}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
-      const text = await res.text();
-      let data = text ? JSON.parse(text) : {};
+      const data = await readJson(res);
 
       if (!res.ok) throw new Error(data.error || "Invalid credentials");
 
       manualLogin({
-        id: data?.user?._id || "",
+        id: data?.user?.id || "",
         email: data.user.email,
         firstName: data.user.firstName,
         lastName: data.user.lastName,
@@ -241,7 +263,13 @@ export default function Login() {
               <>
                 <div>
                   <Label>Email</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Input
+                    type="email"
+                    autoComplete={isSignup ? "email" : "username"}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div>
@@ -249,6 +277,7 @@ export default function Login() {
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
+                      autoComplete={isSignup ? "new-password" : "current-password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -269,7 +298,13 @@ export default function Login() {
             {otpSent && (
               <div>
                 <Label>Enter OTP</Label>
-                <Input value={otp} onChange={(e) => setOtp(e.target.value)} required />
+                <Input
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                />
 
                 <div className="text-xs text-right mt-1">
                   {!canResend ? (

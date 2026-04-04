@@ -43,7 +43,7 @@ export default defineConfig({
 function expressPlugin() {
   return {
     name: "express-plugin",
-    apply: "serve",
+    apply: "serve" as const,
     configureServer(viteServer) {
       console.log("Vite plugin loaded");
 

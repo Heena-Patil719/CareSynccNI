@@ -8,6 +8,8 @@ import { handleDemo } from "./routes/demo.js";
 import { handleSearchCodes, handleGetCodeByNameste } from "./routes/codes.js";
 import {
   handleCreatePatient,
+  handleDeleteDiagnosis,
+  handleDeletePatient,
   handleGetPatient,
   handleListPatients,
   handleAddDiagnosis,
@@ -15,6 +17,7 @@ import {
 } from "./routes/patients.js";
 import authRouter from "./routes/auth";
 import chatRoute from "./routes/chat";
+import codemapRouter from "./routes/codemap";
 
 export function createServer() {
   const app = express();
@@ -36,13 +39,16 @@ export function createServer() {
 
   app.use("/api/auth", authRouter);
   app.use("/api/chat", chatRoute);
-app.use("/api/gemini", geminiRoute);
+  app.use("/api/gemini", geminiRoute);
+  app.use("/api/codemap", codemapRouter);
 
   // PATIENT ROUTES
   app.post("/api/patients", handleCreatePatient);
   app.get("/api/patients", handleListPatients);
   app.get("/api/patients/:patientId", handleGetPatient);
+  app.delete("/api/patients/:patientId", handleDeletePatient);
   app.post("/api/patients/:patientId/diagnoses", handleAddDiagnosis);
+  app.delete("/api/patients/:patientId/diagnoses/:diagnosisId", handleDeleteDiagnosis);
   app.get("/api/patients/:patientId/fhir", handleExportPatientFHIR);
   
 
