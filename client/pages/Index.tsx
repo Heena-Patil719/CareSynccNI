@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import AlertsBanner from "@/components/AlertsBanner";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -18,6 +19,8 @@ import {
 export default function Index() {
   return (
     <>
+      <AlertsBanner />
+
       {/* Hero Section */}
       <section className="py-20 md:py-32">
         <div className="max-w-4xl mx-auto">

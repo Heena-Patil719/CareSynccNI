@@ -22,6 +22,7 @@ import PatientDetail from "./pages/PatientDetail";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import MongoLogin from "./pages/MongoLogin";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const Router = () => {
         <>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/mongo-login" element={<MongoLogin />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       )}
@@ -94,6 +96,8 @@ const Router = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/mongo-login" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<NotFound />} />
         </>
       )}

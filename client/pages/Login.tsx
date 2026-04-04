@@ -1,343 +1,386 @@
-import { useState, FormEvent, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
+import { Activity, Briefcase, Building2, Loader2, Mail, Phone, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { useMongoAuth } from "@/hooks/useMongoAuth";
 import { useAuth } from "@/contexts/AuthContext";
+import type { MongoUser } from "@/lib/mongoAuth";
+
+const loginSchema = z.object({
+  email: z.string().trim().email("Enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+const optionalPhoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => value.length === 0 || value.length >= 7, "Phone number is too short");
+
+const optionalTextSchema = (fieldName: string) =>
+  z
+    .string()
+    .trim()
+    .refine((value) => value.length === 0 || value.length >= 2, `${fieldName} is too short`);
+
+const signupSchema = loginSchema.extend({
+  firstName: z.string().trim().min(1, "First name is required"),
+  lastName: z.string().trim().min(1, "Last name is required"),
+  phoneNumber: optionalPhoneSchema,
+  organization: optionalTextSchema("Organization"),
+  jobTitle: optionalTextSchema("Job title"),
+});
+
+type FieldErrors = Partial<
+  Record<"email" | "password" | "firstName" | "lastName" | "phoneNumber" | "organization" | "jobTitle" | "form", string>
+>;
+
+function mapRoleForApp(user: MongoUser): "admin" | "user" {
+  return user.role === "admin" ? "admin" : "user";
+}
+
+const benefits = [
+  {
+    icon: ShieldCheck,
+    title: "Secure access",
+    text: "Mongo-backed login with hashed passwords and persistent sessions.",
+  },
+  {
+    icon: Building2,
+    title: "Team-ready profiles",
+    text: "Save your organization, role context, and contact details for later workflows.",
+  },
+  {
+    icon: Activity,
+    title: "Faster onboarding",
+    text: "One clean auth path for CareSync instead of mixed OTP and parallel screens.",
+  },
+];
 
 export default function Login() {
-  const [isSignup, setIsSignup] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-
-  const [timer, setTimer] = useState(30);
-  const [canResend, setCanResend] = useState(false);
-
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { user, login, signup, loading, error } = useMongoAuth();
   const { manualLogin } = useAuth();
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    organization: "",
+    jobTitle: "",
+    password: "",
+  });
 
-  const API = "/api/auth";
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedOtp = otp.replace(/\D/g, "").slice(0, 6);
-
-  const readJson = async (res: Response) => {
-    const text = await res.text();
-    if (!text) {
-      return {};
+  useEffect(() => {
+    if (!hasSubmitted && !loading && user) {
+      completeLogin(user);
     }
+  }, [hasSubmitted, loading, user]);
 
-    try {
-      return JSON.parse(text);
-    } catch {
-      return { error: text || `Request failed with status ${res.status}` };
-    }
+  const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: undefined, form: undefined }));
   };
 
-  // ------------------ OTP TIMER ------------------ //
-  useEffect(() => {
-    if (!otpSent) return;
-    if (timer === 0) {
-      setCanResend(true);
+  const validate = (): boolean => {
+    if (mode === "login") {
+      const result = loginSchema.safeParse(formData);
+
+      if (result.success) {
+        setFieldErrors({});
+        return true;
+      }
+
+      const flattened = result.error.flatten().fieldErrors;
+      setFieldErrors({
+        email: flattened.email?.[0],
+        password: flattened.password?.[0],
+      });
+      return false;
+    }
+
+    const result = signupSchema.safeParse(formData);
+
+    if (result.success) {
+      setFieldErrors({});
+      return true;
+    }
+
+    const flattened = result.error.flatten().fieldErrors;
+    setFieldErrors({
+      email: flattened.email?.[0],
+      password: flattened.password?.[0],
+      firstName: flattened.firstName?.[0],
+      lastName: flattened.lastName?.[0],
+      phoneNumber: flattened.phoneNumber?.[0],
+      organization: flattened.organization?.[0],
+      jobTitle: flattened.jobTitle?.[0],
+    });
+    return false;
+  };
+
+  const completeLogin = (signedInUser: MongoUser) => {
+    manualLogin({
+      id: signedInUser.id,
+      email: signedInUser.email,
+      firstName: signedInUser.firstName,
+      lastName: signedInUser.lastName,
+      role: mapRoleForApp(signedInUser),
+    });
+    navigate("/dashboard");
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!validate()) {
       return;
     }
-    const interval = setInterval(() => setTimer((t) => t - 1), 1000);
-    return () => clearInterval(interval);
-  }, [otpSent, timer]);
 
-  // ------------------ CHECK EMAIL ------------------ //
-  const checkEmail = async () => {
-    const res = await fetch(`${API}/check-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: normalizedEmail }),
-    });
-    const data = await readJson(res);
-    if (!res.ok) throw new Error(data.error || "Unable to verify email");
-    return data.exists;
-  };
-
-  // ------------------ SEND OTP FOR SIGNUP ------------------ //
-  const sendOtp = async () => {
-    const res = await fetch(`${API}/send-otp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: normalizedEmail,
-        password,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-      }),
-    });
-    const data = await readJson(res);
-    if (!res.ok) throw new Error(data.error || "Failed to send OTP");
-    return data;
-  };
-
-  const handleSignup = async () => {
-    setIsLoading(true);
     try {
-      const exists = await checkEmail();
-      if (exists) {
-        toast({
-          title: "Account already exists",
-          description: "Please login instead",
-        });
-        setIsSignup(false);
+      setHasSubmitted(true);
+
+      if (mode === "login") {
+        const signedInUser = await login(formData.email, formData.password);
+        completeLogin(signedInUser);
         return;
       }
 
-      await sendOtp();
-      setOtpSent(true);
-      setTimer(30);
-      setCanResend(false);
+      const signedInUser = await signup(
+        formData.email,
+        formData.password,
+        formData.firstName,
+        formData.lastName,
+        formData.phoneNumber,
+        formData.organization,
+        formData.jobTitle,
+      );
 
-      toast({ title: "OTP Sent", description: "Check your email inbox" });
-
-    } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to send OTP",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ------------------ RESEND OTP ------------------ //
-  const handleResendOtp = async () => {
-    if (!canResend) return;
-
-    try {
-      await sendOtp();
-      setTimer(30);
-      setCanResend(false);
-
-      toast({ title: "OTP Resent" });
-    } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to resend OTP",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // ------------------ VERIFY OTP (SIGNUP) ------------------ //
-  const handleVerifyOtp = async () => {
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(`${API}/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, otp: normalizedOtp }),
-      });
-
-      const data = await readJson(res);
-      if (!res.ok) throw new Error(data.error);
-
-      // Save user inside Auth Context
-      manualLogin({
-        id: data?.user?.id || "",
-        email: data.user.email,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        role: data.user.role || "user",
-      });
-
-      toast({ title: "Account Created" });
-      navigate("/");
-
-    } catch (err: any) {
-      toast({
-        title: "Invalid OTP",
-        description: err.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ------------------ LOGIN WITH EMAIL + PASSWORD ONLY ------------------ //
-  const handleLogin = async () => {
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(`${API}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
-
-      const data = await readJson(res);
-
-      if (!res.ok) throw new Error(data.error || "Invalid credentials");
-
-      manualLogin({
-        id: data?.user?.id || "",
-        email: data.user.email,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        role: data.user.role || "user",
-      });
-
-      toast({ title: "Login Successful" });
-      navigate("/");
-
-    } catch (err: any) {
-      toast({
-        title: "Login Failed",
-        description: err.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ------------------ SUBMIT FORM ------------------ //
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (isSignup) {
-      otpSent ? handleVerifyOtp() : handleSignup();
-    } else {
-      handleLogin(); // LOGIN NEVER USES OTP
+      completeLogin(signedInUser);
+    } catch (submitError) {
+      setHasSubmitted(false);
+      const message = submitError instanceof Error ? submitError.message : error ?? "Request failed";
+      setFieldErrors((current) => ({ ...current, form: message }));
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center px-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center font-bold">
-            {isSignup ? "Create Account" : "Welcome Back"}
-          </CardTitle>
-          <CardDescription className="text-center">
-            {otpSent
-              ? "Enter the OTP sent to your email"
-              : isSignup
-              ? "Register your account"
-              : "Login to continue"}
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-[calc(100vh-8rem)] bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_32%),linear-gradient(135deg,_rgba(14,165,233,0.06),_rgba(15,23,42,0.02))]">
+      <div className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-6xl gap-8 px-4 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <section className="rounded-[2rem] border border-border/60 bg-background/75 p-8 shadow-2xl backdrop-blur md:p-10">
+          <div className="max-w-xl space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+              <ShieldCheck className="h-4 w-4" />
+              Unified CareSync access
+            </div>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-3">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
+                {mode === "login" ? "Sign in and continue your care workflow." : "Create a profile that your team can reuse."}
+              </h1>
+              <p className="text-base leading-7 text-muted-foreground md:text-lg">
+                This refreshed auth flow stores only the account details that help with real use later:
+                identity, role, contact information, and organization context.
+              </p>
+            </div>
 
-            {/* SIGNUP FIELDS */}
-            {isSignup && !otpSent && (
-              <>
-                <div>
-                  <Label>First Name</Label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-                </div>
-                <div>
-                  <Label>Last Name</Label>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-                </div>
-              </>
-            )}
+            <div className="grid gap-4">
+              {benefits.map((benefit) => {
+                const Icon = benefit.icon;
 
-            {/* EMAIL + PASSWORD */}
-            {!otpSent && (
-              <>
-                <div>
-                  <Label>Email</Label>
+                return (
+                  <div
+                    key={benefit.title}
+                    className="flex items-start gap-4 rounded-2xl border border-border/60 bg-muted/40 p-4"
+                  >
+                    <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h2 className="font-semibold text-foreground">{benefit.title}</h2>
+                      <p className="text-sm leading-6 text-muted-foreground">{benefit.text}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <Card className="border-border/70 bg-background/95 shadow-2xl">
+          <CardHeader className="space-y-4">
+            <div className="inline-flex rounded-full bg-muted p-1">
+              <Button
+                type="button"
+                variant={mode === "login" ? "default" : "ghost"}
+                onClick={() => {
+                  setMode("login");
+                  setFieldErrors({});
+                }}
+              >
+                Sign In
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "signup" ? "default" : "ghost"}
+                onClick={() => {
+                  setMode("signup");
+                  setFieldErrors({});
+                }}
+              >
+                Create Account
+              </Button>
+            </div>
+
+            <div className="space-y-1">
+              <CardTitle className="text-3xl">
+                {mode === "login" ? "Welcome back" : "Set up your account"}
+              </CardTitle>
+              <CardDescription>
+                {mode === "login"
+                  ? "Use your email and password to access CareSync."
+                  : "We will save the details that are useful for future team workflows."}
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {mode === "signup" && (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First name</Label>
+                      <Input
+                        id="firstName"
+                        value={formData.firstName}
+                        onChange={(event) => handleChange("firstName", event.target.value)}
+                        placeholder="Heena"
+                      />
+                      {fieldErrors.firstName && (
+                        <p className="text-sm text-destructive">{fieldErrors.firstName}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last name</Label>
+                      <Input
+                        id="lastName"
+                        value={formData.lastName}
+                        onChange={(event) => handleChange("lastName", event.target.value)}
+                        placeholder="Patil"
+                      />
+                      {fieldErrors.lastName && (
+                        <p className="text-sm text-destructive">{fieldErrors.lastName}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumber">Phone number</Label>
+                      <div className="relative">
+                        <Phone className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="phoneNumber"
+                          className="pl-10"
+                          value={formData.phoneNumber}
+                          onChange={(event) => handleChange("phoneNumber", event.target.value)}
+                          placeholder="+91 98765 43210"
+                        />
+                      </div>
+                      {fieldErrors.phoneNumber && (
+                        <p className="text-sm text-destructive">{fieldErrors.phoneNumber}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="jobTitle">Job title</Label>
+                      <div className="relative">
+                        <Briefcase className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="jobTitle"
+                          className="pl-10"
+                          value={formData.jobTitle}
+                          onChange={(event) => handleChange("jobTitle", event.target.value)}
+                          placeholder="Care Coordinator"
+                        />
+                      </div>
+                      {fieldErrors.jobTitle && (
+                        <p className="text-sm text-destructive">{fieldErrors.jobTitle}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="organization">Organization</Label>
+                    <div className="relative">
+                      <Building2 className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="organization"
+                        className="pl-10"
+                        value={formData.organization}
+                        onChange={(event) => handleChange("organization", event.target.value)}
+                        placeholder="CareSync Hospital or Clinic"
+                      />
+                    </div>
+                    {fieldErrors.organization && (
+                      <p className="text-sm text-destructive">{fieldErrors.organization}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
+                    id="email"
                     type="email"
-                    autoComplete={isSignup ? "email" : "username"}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
+                    className="pl-10"
+                    value={formData.email}
+                    onChange={(event) => handleChange("email", event.target.value)}
+                    placeholder="you@example.com"
                   />
                 </div>
-
-                <div>
-                  <Label>Password</Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      autoComplete={isSignup ? "new-password" : "current-password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-3"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* OTP INPUT */}
-            {otpSent && (
-              <div>
-                <Label>Enter OTP</Label>
-                <Input
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  inputMode="numeric"
-                  maxLength={6}
-                  required
-                />
-
-                <div className="text-xs text-right mt-1">
-                  {!canResend ? (
-                    <span className="opacity-70">Resend in {timer}s</span>
-                  ) : (
-                    <button type="button" className="text-primary" onClick={handleResendOtp}>
-                      Resend OTP
-                    </button>
-                  )}
-                </div>
+                {fieldErrors.email && <p className="text-sm text-destructive">{fieldErrors.email}</p>}
               </div>
-            )}
 
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {isSignup ? (otpSent ? "Verify OTP" : "Send OTP") : "Sign In"}
-            </Button>
-          </form>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(event) => handleChange("password", event.target.value)}
+                  placeholder="At least 8 characters"
+                />
+                {fieldErrors.password && (
+                  <p className="text-sm text-destructive">{fieldErrors.password}</p>
+                )}
+              </div>
 
-          <p className="text-sm text-center mt-4">
-            {isSignup ? "Already have an account?" : "Don't have an account?"}
-            <button
-              className="ml-2 text-primary font-semibold"
-              onClick={() => {
-                setIsSignup(!isSignup);
-                setOtpSent(false);
-              }}
-            >
-              {isSignup ? "Sign In" : "Sign Up"}
-            </button>
-          </p>
-        </CardContent>
-      </Card>
+              {(fieldErrors.form || error) && (
+                <p className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {fieldErrors.form ?? error}
+                </p>
+              )}
+
+              <Button className="h-11 w-full text-base" disabled={loading} type="submit">
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {mode === "login" ? "Sign In to CareSync" : "Create CareSync Account"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

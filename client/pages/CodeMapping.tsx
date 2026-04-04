@@ -15,24 +15,51 @@ import {
 import Papa from "papaparse";
 import Modal from "@/components/ui/modal.tsx";
 import { useToast } from "@/components/ui/use-toast";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
+import { CodeMapperAgent } from "@/components/CodeMapperAgent";
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
 import { Pie } from "react-chartjs-2";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-async function readJson(res: Response) {
-  const text = await res.text();
-  return text ? JSON.parse(text) : {};
+interface MappingRecord {
+  id: string;
+  namaste_code: string;
+  namaste_name: string;
+  icd11_code: string;
+  icd11_name: string;
+  category: "Ayurveda" | "Siddha" | "Unani";
+  symptoms: string;
+  description: string;
+  status: "verified" | "pending";
+  confidence?: number;
+  mappingCount?: number;
+}
+
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  const data = text ? (JSON.parse(text) as T & { error?: string }) : ({} as T & { error?: string });
+
+  if (!response.ok) {
+    throw new Error("error" in data && data.error ? data.error : "Request failed");
+  }
+
+  return data as T;
 }
 
 export default function CodeMapping() {
   const toast = useToast();
-  const [mappings, setMappings] = useState<any[]>([]);
+
+  const [mappings, setMappings] = useState<MappingRecord[]>([]);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [editing, setEditing] = useState<any | null>(null);
-  const [viewing, setViewing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<MappingRecord | null>(null);
+  const [viewing, setViewing] = useState<MappingRecord | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -51,14 +78,10 @@ export default function CodeMapping() {
   const fetchMappings = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/codemap");
-      const data = await readJson(res);
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch mappings");
-      }
-
-      setMappings(data.mappings || []);
+      const data = await parseApiResponse<MappingRecord[]>(
+        await fetch("/api/agent/mappings"),
+      );
+      setMappings(data || []);
     } catch (error) {
       console.error(error);
       toast.toast({
@@ -77,16 +100,16 @@ export default function CodeMapping() {
 
   const normalizeKey = (key: string) => key.toString().trim().toLowerCase();
 
-  const mapRowToCodemap = (row: Record<string, any>) => {
-    const normalized: Record<string, any> = {};
-    Object.keys(row || {}).forEach((key) => {
-      normalized[normalizeKey(key)] = row[key];
+  const mapRowToCodemap = (row: Record<string, unknown>) => {
+    const normalized: Record<string, unknown> = {};
+    Object.keys(row || {}).forEach((k) => {
+      normalized[normalizeKey(k)] = row[k];
     });
 
     const find = (keys: string[]) => {
       for (const key of keys) {
         if (normalized[key] !== undefined && String(normalized[key]).trim() !== "") {
-          return normalized[key];
+          return String(normalized[key]);
         }
       }
       return undefined;
@@ -98,12 +121,38 @@ export default function CodeMapping() {
       icd11_code: find(["icd11_code", "icd11 code", "icd_code", "icd"]) || "",
       icd11_name: find(["icd11_name", "icd name"]) || "",
       category: find(["category", "system"]) || "Ayurveda",
-      symptoms: find(["symptoms", "symptom"]) || "",
-      description: find(["description", "desc"]) || "",
-      status: (find(["status"]) || "pending").toString().toLowerCase(),
+      symptoms: find(["symptoms", "symptom"]) || null,
+      description: find(["description", "desc"]) || null,
+      status: (find(["status"]) || "pending").toString().toLowerCase() === "verified" ? "verified" : "pending",
     };
   };
 
+  // Filter duplicates
+  const filterOutExisting = async (rows: ReturnType<typeof mapRowToCodemap>[]) => {
+    if (!rows.length) {
+      return {
+        uniqueRows: [],
+        skipped: 0,
+      };
+    }
+
+    const existingSet = new Set<string>();
+    mappings.forEach((record) => {
+      existingSet.add(`${record.namaste_code.toLowerCase()}||${record.icd11_code.toLowerCase()}`);
+    });
+
+    const uniqueRows = rows.filter((r) => {
+      const key = `${r.namaste_code.toLowerCase()}||${r.icd11_code.toLowerCase()}`;
+      return !existingSet.has(key);
+    });
+
+    return {
+      uniqueRows,
+      skipped: rows.length - uniqueRows.length,
+    };
+  };
+
+  // CSV upload
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,23 +166,21 @@ export default function CodeMapping() {
           .map(mapRowToCodemap)
           .filter((row) => row.namaste_code && row.icd11_code);
 
-        try {
-          const res = await fetch("/api/codemap/bulk", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mapped),
-          });
-          const data = await readJson(res);
+        const { uniqueRows, skipped } = await filterOutExisting(mapped);
 
-          if (!res.ok) {
-            throw new Error(data.error || "Failed to import mappings");
-          }
+        try {
+          const data = await parseApiResponse<{ inserted: number }>(
+            await fetch("/api/agent/import-mappings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rows: uniqueRows }),
+            }),
+          );
 
           toast.toast({
             title: "Upload complete",
-            description: `Inserted ${data.inserted}, skipped ${data.skipped}.`,
+            description: `Inserted ${data.inserted}, skipped ${skipped}.`,
           });
-
           fetchMappings();
         } catch (error) {
           toast.toast({
@@ -146,75 +193,81 @@ export default function CodeMapping() {
     });
   };
 
-  const handleCSVExport = () => {
-    if (!mappings.length) {
-      toast.toast({ title: "No data", description: "Nothing to export." });
-      return;
-    }
-
-    const csv = Papa.unparse(mappings);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "codemap_export.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleCreateMapping = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  // Export CSV
+  const handleCSVExport = async () => {
     try {
-      const res = await fetch("/api/codemap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const data = await readJson(res);
+      const data = await parseApiResponse<MappingRecord[]>(
+        await fetch("/api/agent/export-mappings"),
+      );
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create mapping");
+      if (!data.length) {
+        toast.toast({ title: "No data", description: "Nothing to export." });
+        return;
       }
 
-      toast.toast({ title: "Created" });
-      setShowForm(false);
-      setFormData({
-        namaste_code: "",
-        namaste_name: "",
-        icd11_code: "",
-        icd11_name: "",
-        category: "Ayurveda",
-        symptoms: "",
-        description: "",
-        status: "pending",
+      const csv = Papa.unparse(data);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "codemap_export.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.toast({
+        title: "Export error",
+        description: error instanceof Error ? error.message : "Failed to export mappings",
+        variant: "destructive",
       });
-      fetchMappings();
+    }
+  };
+
+  // Create manual mapping
+  const handleCreateMapping = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    try {
+      await parseApiResponse<{ message: string }>(
+        await fetch("/api/agent/manual-mapping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        }),
+      );
     } catch (error) {
       toast.toast({
         title: "Insert error",
         description: error instanceof Error ? error.message : "Failed to create mapping",
         variant: "destructive",
       });
+      return;
     }
+
+    toast.toast({ title: "Created" });
+    setShowForm(false);
+    setFormData({
+      namaste_code: "",
+      namaste_name: "",
+      icd11_code: "",
+      icd11_name: "",
+      category: "Ayurveda",
+      symptoms: "",
+      description: "",
+      status: "pending",
+    });
+
+    fetchMappings();
   };
 
-  const saveEdit = async (data: any) => {
+  // Edit mapping
+  const saveEdit = async (data: MappingRecord) => {
     try {
-      const res = await fetch(`/api/codemap/${data.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const response = await readJson(res);
-
-      if (!res.ok) {
-        throw new Error(response.error || "Failed to update mapping");
-      }
-
-      toast.toast({ title: "Updated" });
-      setEditing(null);
-      fetchMappings();
+      await parseApiResponse<{ message: string }>(
+        await fetch(`/api/agent/mapping/${encodeURIComponent(data.id)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }),
+      );
     } catch (error) {
       toast.toast({
         title: "Update error",
@@ -226,15 +279,11 @@ export default function CodeMapping() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/codemap/${id}`, { method: "DELETE" });
-      const data = await readJson(res);
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to delete mapping");
-      }
-
-      toast.toast({ title: "Deleted" });
-      fetchMappings();
+      await parseApiResponse<{ message: string }>(
+        await fetch(`/api/agent/mapping/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        }),
+      );
     } catch (error) {
       toast.toast({
         title: "Delete error",
@@ -270,8 +319,10 @@ export default function CodeMapping() {
     }
   };
 
-  const getChartData = (item: any) => ({
-    labels: item.symptoms ? item.symptoms.split(",").map((s: string) => s.trim()) : [],
+  const getChartData = (item: MappingRecord) => ({
+    labels: item.symptoms
+      ? item.symptoms.split(",").map((s: string) => s.trim())
+      : [],
     datasets: [
       {
         label: "Count",
@@ -285,6 +336,8 @@ export default function CodeMapping() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
+      <CodeMapperAgent />
+
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-2">Code Mapping</h1>
@@ -557,7 +610,10 @@ export default function CodeMapping() {
                       tooltip: {
                         callbacks: {
                           label: (context: any) => {
-                            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                            const total = context.dataset.data.reduce(
+                              (a: number, b: number) => a + b,
+                              0
+                            );
                             const value = context.raw;
                             const percentage = ((value / total) * 100).toFixed(1);
                             return `${context.label}: ${percentage}% (${value})`;

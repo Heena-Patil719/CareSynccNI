@@ -12,14 +12,13 @@ router.post("/ask", async (req, res) => {
     }
 
     if (!getGroqApiKey()) {
-      return res.json({ answer: "Backend error: Missing GROQ_API_KEY." });
+      return res.json({ answer: "Groq API key is missing. Set GROQ_API_KEY." });
     }
 
     const data = await createGroqChatCompletion(question, 0.7);
     console.log("GROQ RAW:", data);
 
     const text = extractGroqText(data) || "I could not generate a response.";
-
     return res.json({ answer: text });
   } catch (error) {
     console.error("Groq backend error:", error);
@@ -29,4 +28,3 @@ router.post("/ask", async (req, res) => {
 });
 
 export default router;
-  

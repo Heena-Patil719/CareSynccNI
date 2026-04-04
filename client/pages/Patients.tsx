@@ -1,323 +1,213 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Plus, Eye, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, Search } from "lucide-react";
+import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
+import { AddPatientModal } from "@/components/AddPatientModal";
 
-interface HealthUpdate {
-  date: string;
-  bloodPressure: string;
-  heartRate: number;
-  temperature: number;
-  notes?: string;
-}
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Patient {
-  id: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth?: string;
-  gender?: "male" | "female" | "other";
-  admitDate?: string;
-  diagnosis?: string;
-  email?: string;
-  phone?: string;
-  guardianName?: string;
-  guardianPhone?: string;
-  address?: string;
-  diagnosisCount: number;
-  createdAt: string;
-  healthUpdates?: HealthUpdate[];
+  patientId: string;
+  name: string;
+  age: number;
+  ward: string;
+  bedNumber: string;
+  status: string;
+  assignedDoctor: string;
+  admittedAt: string;
 }
 
-async function readJson(res: Response) {
-  const text = await res.text();
-  return text ? JSON.parse(text) : {};
-}
+const statusColors: Record<string, string> = {
+  critical: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  stable: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  admitted: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  discharged: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400",
+  "under observation": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+};
 
 export default function Patients() {
-  const { user } = useAuth();
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [wardFilter, setWardFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    dateOfBirth: "",
-    gender: "male" as "male" | "female" | "other",
-    admitDate: "",
-    diagnosis: "",
-    email: "",
-    phone: "",
-    guardianName: "",
-    guardianPhone: "",
-    address: "",
+  const { data: patients = [], isLoading, error } = useQuery<Patient[]>({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const res = await fetch("/api/patients");
+      if (!res.ok) throw new Error("Failed to fetch patients");
+      return res.json();
+    },
   });
 
-  const fetchPatients = async () => {
-    setLoading(true);
-    setError(null);
+  const filteredPatients = patients.filter((p) => {
+    const pName = p.name || `${(p as any).firstName || ""} ${(p as any).lastName || ""}`.trim() || "Unknown";
+    const pId = p.patientId || "Unknown";
+    const pWard = p.ward || "Unknown";
+    const pStatus = p.status || "Unknown";
+    
+    const matchesSearch =
+      pName.toLowerCase().includes(search.toLowerCase()) ||
+      pId.toLowerCase().includes(search.toLowerCase());
+    const matchesWard = wardFilter === "all" || pWard === wardFilter;
+    const matchesStatus = statusFilter === "all" || pStatus === statusFilter;
+    return matchesSearch && matchesWard && matchesStatus;
+  });
 
-    try {
-      const res = await fetch("/api/patients");
-      const data = await readJson(res);
+  const uniqueWards = Array.from(new Set(patients.map((p) => p.ward || "Unknown")));
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load patients");
-      }
+  const statusCounts = patients.reduce((acc, p) => {
+    const s = p.status || "Unknown";
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
-      setPatients(data.patients || []);
-    } catch (fetchError) {
-      console.error("Fetch patients error:", fetchError);
-      setPatients([]);
-      setError("Failed to load patients");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
-  const filteredPatients = patients.filter(
-    (patient) =>
-      patient.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.lastName.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  const handleCreatePatient = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.firstName || !formData.lastName) {
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/patients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user?.id,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          dateOfBirth: formData.dateOfBirth || undefined,
-          gender: formData.gender,
-          admitDate: formData.admitDate || undefined,
-          diagnosis: formData.diagnosis || undefined,
-          email: formData.email || undefined,
-          phone: formData.phone || undefined,
-          guardianName: formData.guardianName || undefined,
-          guardianPhone: formData.guardianPhone || undefined,
-          address: formData.address || undefined,
-        }),
-      });
-
-      const data = await readJson(res);
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create patient");
-      }
-
-      if (data.patient) {
-        setPatients((prev) => [data.patient, ...prev]);
-      }
-
-      setFormData({
-        firstName: "",
-        lastName: "",
-        dateOfBirth: "",
-        gender: "male",
-        admitDate: "",
-        diagnosis: "",
-        email: "",
-        phone: "",
-        guardianName: "",
-        guardianPhone: "",
-        address: "",
-      });
-      setShowForm(false);
-    } catch (createError) {
-      console.error("Create patient error:", createError);
-      alert(createError instanceof Error ? createError.message : "Failed to create patient.");
-    }
-  };
-
-  const handleDeletePatient = async (id: string) => {
-    try {
-      const res = await fetch(`/api/patients/${id}`, { method: "DELETE" });
-      const data = await readJson(res);
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to delete patient");
-      }
-
-      setPatients((prev) => prev.filter((patient) => patient.id !== id));
-    } catch (deleteError) {
-      console.error("Delete patient error:", deleteError);
-      alert("Failed to delete patient");
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <p>Loading patients...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <p className="text-red-500">{error}</p>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="p-8">Loading patients...</div>;
+  if (error) return <div className="p-8 text-red-500">Error: {(error as Error).message}</div>;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold mb-2">Patient Management</h1>
-          <p className="text-muted-foreground">Create and manage patient records</p>
+          <h1 className="text-3xl font-display font-bold">Patients</h1>
+          <p className="text-muted-foreground mt-1">Manage and view all patient records</p>
         </div>
-
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          className="gap-2"
-          variant={showForm ? "secondary" : "default"}
-        >
-          <Plus className="w-4 h-4" />
-          {showForm ? "Cancel" : "Create Patient"}
+        <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
+          <Plus className="w-4 h-4" /> Add Patient
         </Button>
       </div>
 
-      {showForm && (
-        <div className="rounded-lg border border-border bg-card p-6 animate-slide-up">
-          <h2 className="text-lg font-semibold mb-4">New Patient</h2>
-
-          <form onSubmit={handleCreatePatient} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="First Name *" value={formData.firstName} onChange={(v) => setFormData({ ...formData, firstName: v })} />
-              <InputField label="Last Name *" value={formData.lastName} onChange={(v) => setFormData({ ...formData, lastName: v })} />
-              <InputField type="date" label="Date of Birth" value={formData.dateOfBirth} onChange={(v) => setFormData({ ...formData, dateOfBirth: v })} />
-
-              <div>
-                <label className="text-sm font-medium mb-1 block">Gender</label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      gender: e.target.value as "male" | "female" | "other",
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-input bg-background"
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <InputField type="date" label="Admit Date" value={formData.admitDate} onChange={(v) => setFormData({ ...formData, admitDate: v })} />
-              <InputField label="Diagnosis" value={formData.diagnosis} onChange={(v) => setFormData({ ...formData, diagnosis: v })} />
-              <InputField label="Email" value={formData.email} onChange={(v) => setFormData({ ...formData, email: v })} />
-              <InputField label="Phone" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
-              <InputField label="Guardian Name" value={formData.guardianName} onChange={(v) => setFormData({ ...formData, guardianName: v })} />
-              <InputField label="Guardian Phone" value={formData.guardianPhone} onChange={(v) => setFormData({ ...formData, guardianPhone: v })} />
-
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium mb-1 block">Address</label>
-                <textarea
-                  placeholder="Full address"
-                  className="w-full p-2 rounded-lg border border-input bg-background"
-                  rows={3}
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button type="submit">Create Patient</Button>
-              <Button variant="outline" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="bg-card border rounded-lg px-4 py-2 flex items-center gap-2 shadow-sm min-w-fit">
+          <span className="text-sm text-muted-foreground">Total</span>
+          <span className="font-bold">{patients.length}</span>
         </div>
-      )}
-
-      <div>
-        <Input
-          placeholder="Search by name..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+        {Object.entries(statusCounts).map(([status, count]) => (
+          <div key={status} className="bg-card border rounded-lg px-4 py-2 flex items-center gap-2 shadow-sm min-w-fit capitalize">
+            <span className="text-sm text-muted-foreground">{status}</span>
+            <span className="font-bold">{count}</span>
+          </div>
+        ))}
       </div>
 
-      {filteredPatients.length === 0 ? (
-        <div className="p-12 text-center text-muted-foreground">No patients found.</div>
-      ) : (
-        <div className="space-y-4">
-          {filteredPatients.map((patient) => (
-            <div key={patient.id} className="rounded-lg border border-border bg-card p-4">
-              <div className="flex justify-between">
-                <div>
-                  <h3 className="font-semibold text-lg">
-                    {patient.firstName} {patient.lastName}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {patient.dateOfBirth} · {patient.gender}
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  <Link to={`/patients/${patient.id}`}>
-                    <Button size="sm" variant="outline">
-                      <Eye className="w-4 h-4" /> View
-                    </Button>
-                  </Link>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeletePatient(patient.id)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card p-4 rounded-lg border shadow-sm">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search name or ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
-      )}
-    </div>
-  );
-}
+        <div className="flex gap-4 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+          <Select value={wardFilter} onValueChange={setWardFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by Ward" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Wards</SelectItem>
+              {uniqueWards.map(w => (
+                <SelectItem key={w} value={w}>{w}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="admitted">Admitted</SelectItem>
+              <SelectItem value="under observation">Under Observation</SelectItem>
+              <SelectItem value="stable">Stable</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="discharged">Discharged</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-function InputField({
-  label,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  type?: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-sm font-medium mb-1 block">{label}</label>
-      <Input type={type} value={value} placeholder={label} onChange={(e) => onChange(e.target.value)} />
+      <div className="border rounded-lg bg-card shadow-sm overflow-hidden">
+        {filteredPatients.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground flex flex-col items-center">
+            <div className="bg-accent/50 p-4 rounded-full mb-4">
+              <Search className="w-8 h-8 text-muted-foreground/50" />
+            </div>
+            <p className="text-lg font-medium">No patients found</p>
+            <p className="text-sm">Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Patient ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Age</TableHead>
+                <TableHead>Ward</TableHead>
+                <TableHead>Bed No.</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned Doctor</TableHead>
+                <TableHead>Admitted</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredPatients.map((patient) => (
+                <TableRow
+                  key={patient.patientId}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => navigate(`/patients/${patient.patientId}`)}
+                >
+                  <TableCell className="font-medium text-primary">
+                    {patient.patientId || "Legacy"}
+                  </TableCell>
+                  <TableCell className="font-semibold">{patient.name || `${(patient as any).firstName || ""} ${(patient as any).lastName || ""}`.trim()}</TableCell>
+                  <TableCell>{patient.age || "-"}</TableCell>
+                  <TableCell>{patient.ward || "Unknown"}</TableCell>
+                  <TableCell>{patient.bedNumber || "-"}</TableCell>
+                  <TableCell>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize flex w-max items-center ${statusColors[patient.status || "Unknown"] || "bg-gray-100 text-gray-800"}`}>
+                      {patient.status || "Unknown"}
+                    </span>
+                  </TableCell>
+                  <TableCell>{patient.assignedDoctor || "-"}</TableCell>
+                  <TableCell>{patient.admittedAt ? format(new Date(patient.admittedAt), "MMM d, yyyy") : "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/patients/${patient.patientId}`} onClick={(e) => e.stopPropagation()}>
+                        View
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      <AddPatientModal open={isAddModalOpen} onOpenChange={setIsAddModalOpen} />
     </div>
   );
 }
