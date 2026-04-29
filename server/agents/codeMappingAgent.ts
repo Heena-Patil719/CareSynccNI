@@ -46,6 +46,7 @@ export interface AgentResult {
   confidence: number;
   status: "mapped" | "unmapped" | "partial";
   reasoning: string;
+  symptoms: string[];
 }
 
 export interface ApiSuggestion {
@@ -203,6 +204,19 @@ async function searchNamasteDb(parsed: ParsedInput): Promise<NamasteCandidate[]>
     }
   });
 
+  if (uniqueCandidates.size === 0) {
+    const fallbacks = await NamasteCodeModel.find(categoryFilter).limit(3).lean().exec();
+    fallbacks.forEach((candidate) => {
+      uniqueCandidates.set(candidate.code, {
+        code: candidate.code,
+        name: candidate.name,
+        description: candidate.description,
+        category: candidate.category,
+        symptoms: candidate.symptoms,
+      });
+    });
+  }
+
   return Array.from(uniqueCandidates.values()).slice(0, 5);
 }
 
@@ -295,6 +309,7 @@ async function crossCheckIcd11(scoredCandidates: ScoredCandidate[]): Promise<Age
           confidence: candidate.confidence,
           status: "unmapped" as const,
           reasoning: buildReasoning(candidate, "unmapped"),
+          symptoms: candidate.symptoms,
         };
       }
 
@@ -309,6 +324,7 @@ async function crossCheckIcd11(scoredCandidates: ScoredCandidate[]): Promise<Age
         confidence: candidate.confidence,
         status,
         reasoning: buildReasoning(candidate, status),
+        symptoms: candidate.symptoms,
       };
     }),
   );
@@ -468,6 +484,7 @@ async function refineWithGroq(
                 ? clampConfidence(aiCandidate.confidence)
                 : result.confidence,
             reasoning: aiCandidate.reasoning?.trim() || result.reasoning,
+            symptoms: result.symptoms,
           };
         })
         .sort((left, right) => right.confidence - left.confidence)
@@ -606,6 +623,7 @@ function buildFallbackResult(parsed: ParsedInput): AgentRunResponse {
         confidence: 0,
         status: "unmapped",
         reasoning: "The agent could not complete all planning steps, so no confident mapping could be produced.",
+        symptoms: [],
       },
     ],
     apiSuggestions: [],

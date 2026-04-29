@@ -24,6 +24,7 @@ interface AgentResult {
   confidence: number;
   status: "mapped" | "unmapped" | "partial";
   reasoning: string;
+  symptoms: string[];
 }
 
 interface ApiSuggestion {
@@ -528,6 +529,15 @@ export function CodeMapperAgent() {
                         </div>
 
                         <p className="text-sm leading-6 text-muted-foreground">{result.reasoning}</p>
+
+                        {result.symptoms && result.symptoms.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <span className="text-xs font-semibold text-muted-foreground my-auto">Symptoms:</span>
+                            {result.symptoms.map(sym => (
+                              <Badge key={sym} variant="secondary" className="text-xs bg-primary/10 border-primary/20">{sym}</Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="min-w-[210px] space-y-3">
@@ -589,6 +599,15 @@ export function CodeMapperAgent() {
                         </div>
 
                         <p className="text-sm leading-6 text-muted-foreground">{suggestion.reasoning}</p>
+
+                        {suggestion.symptoms && suggestion.symptoms.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <span className="text-xs font-semibold text-amber-800/60 my-auto">Symptoms:</span>
+                            {suggestion.symptoms.map(sym => (
+                              <Badge key={sym} variant="secondary" className="text-xs bg-amber-500/20 border-amber-500/30 text-amber-900">{sym}</Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="min-w-[210px] space-y-3">
